@@ -18,16 +18,12 @@ import os
 DEFAULT_SAMPLE_PATH = os.path.join(os.path.dirname(__file__), "sample_fields_eurocrops_si.geojson")
 
 
-def load_eurocrops_fields(path: str = DEFAULT_SAMPLE_PATH) -> dict:
-    """
-    Reads the bundled EuroCrops (Slovenia) GeoJSON sample and returns
-    {label: closed_polygon}, same [lon, lat] format as app.py's FIELDS dict.
-    Only the exterior ring of each polygon is used.
-    """
+def _load_features(path):
+    """Shared parse: yields (label, exterior_ring, crop_name, area_ha) per feature."""
     with open(path) as f:
         data = json.load(f)
 
-    fields = {}
+    items = []
     for i, feature in enumerate(data["features"]):
         geometry = feature["geometry"]
         if geometry["type"] == "Polygon":
@@ -42,6 +38,32 @@ def load_eurocrops_fields(path: str = DEFAULT_SAMPLE_PATH) -> dict:
         crop = props.get("crop", "unknown crop")
         area_ha = props.get("area_ha")
         label = f"EuroCrops SI #{i}: {crop} ({area_ha:.2f} ha)" if area_ha is not None else f"EuroCrops SI #{i}: {crop}"
-        fields[label] = exterior_ring
+        items.append((label, exterior_ring, crop, area_ha))
 
-    return fields
+    return items
+
+
+def load_eurocrops_fields(path: str = DEFAULT_SAMPLE_PATH) -> dict:
+    """
+    Reads the bundled EuroCrops (Slovenia) GeoJSON sample and returns
+    {label: closed_polygon}, same [lon, lat] format as app.py's FIELDS dict.
+    """
+    return {label: ring for label, ring, _crop, _area in _load_features(path)}
+
+
+def load_eurocrops_field_crops(path: str = DEFAULT_SAMPLE_PATH) -> dict:
+    """
+    Returns {label: crop_name} for the same fields load_eurocrops_fields()
+    loads — lets app.py know which crop is growing on a given field, e.g. to
+    label a per-field NDVI chart.
+    """
+    return {label: crop for label, _ring, crop, _area in _load_features(path)}
+
+
+def load_eurocrops_field_areas(path: str = DEFAULT_SAMPLE_PATH) -> dict:
+    """
+    Returns {label: area_ha}. Used to exclude tiny parcels from crop
+    benchmarks — at Sentinel-2's 10 m pixels (0.01 ha/px), a sub-0.3 ha field
+    has too few clean pixels post-masking for a reliable mean NDVI.
+    """
+    return {label: area for label, _ring, _crop, area in _load_features(path) if area is not None}

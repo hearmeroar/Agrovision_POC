@@ -1,8 +1,11 @@
+import calendar
+import datetime
 import io
 
 import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
+import tifffile
 from PIL import Image, ImageDraw
 
 try:
@@ -29,6 +32,12 @@ try:
 except ImportError:
     EUROCROPS_MODULE_AVAILABLE = False
 
+try:
+    import crop_benchmarks
+    CROP_BENCHMARKS_STORE_AVAILABLE = True
+except ImportError:
+    CROP_BENCHMARKS_STORE_AVAILABLE = False
+
 
 @st.cache_data(ttl=3600, show_spinner="Loading field boundaries from OpenStreetMap...")
 def _cached_osm_fields(bbox):
@@ -43,6 +52,135 @@ def _cached_ftw_fields():
 @st.cache_data(show_spinner="Loading official EuroCrops (Slovenia) field boundaries...")
 def _cached_eurocrops_fields():
     return eurocrops_fields.load_eurocrops_fields()
+
+
+@st.cache_data(show_spinner="Loading EuroCrops crop types...")
+def _cached_eurocrops_crops():
+    return eurocrops_fields.load_eurocrops_field_crops()
+
+
+def _project_polygon_to_pixels(polygon_coords, bbox, size):
+    """Maps [lon, lat] polygon points onto pixel coords of a north-up image
+    covering `bbox` (lon_min, lon_max, lat_min, lat_max) at `size` (w, h)."""
+    lon_min, lon_max, lat_min, lat_max = bbox
+    width, height = size
+    return [
+        (
+            (lon - lon_min) / (lon_max - lon_min) * width,
+            (1 - (lat - lat_min) / (lat_max - lat_min)) * height,
+        )
+        for lon, lat in polygon_coords
+    ]
+
+
+def _polygon_mask(polygon_coords, bbox, size):
+    """Boolean pixel mask (True = inside the field polygon) for `size` (w, h)."""
+    points = _project_polygon_to_pixels(polygon_coords, bbox, size)
+    mask_img = Image.new("L", size, 0)
+    ImageDraw.Draw(mask_img).polygon(points, fill=255)
+    return np.array(mask_img) > 0
+
+
+@st.cache_data(show_spinner="Computing monthly NDVI from Sentinel-2 (masked to field boundary)...")
+def _monthly_ndvi_series(polygon_coords, padded_bbox, year):
+    """
+    Mean NDVI per month for `year`, real Sentinel-2 data via the CDSE Process
+    API, masked to dataMask (cloud/no-data) AND the field's own polygon (not
+    just its padded bounding box) so neighboring fields don't dilute the
+    value. {month: mean_ndvi or None if no cloud-free field pixels}.
+    """
+    today = datetime.date.today()
+    series = {}
+    for month in range(1, 13):
+        month_start = datetime.date(year, month, 1)
+        if month_start > today:
+            break
+        last_day = calendar.monthrange(year, month)[1]
+        date_from = month_start.isoformat()
+        date_to = min(datetime.date(year, month, last_day), today).isoformat()
+        try:
+            tiff_bytes = fetch_sat.fetch_ndvi_raster(polygon_coords, date_from, date_to)
+            arr = tifffile.imread(io.BytesIO(tiff_bytes))
+            ndvi_band = arr[..., 0]
+            data_mask = arr[..., 3] > 0.5
+            field_mask = _polygon_mask(polygon_coords, padded_bbox, (ndvi_band.shape[1], ndvi_band.shape[0]))
+            valid = data_mask & field_mask
+            series[month] = float(ndvi_band[valid].mean()) if valid.sum() > 0 else None
+        except Exception:
+            series[month] = None
+    return series
+
+
+BENCHMARK_FIELDS_PER_CROP = 10
+MIN_BENCHMARK_FIELD_AREA_HA = 0.3  # below this, too few clean Sentinel-2 (10m) pixels post-masking
+CROP_DECLARATION_YEAR = 2023  # the EuroCrops sample's actual declaration year (sample_fields_eurocrops_si.geojson)
+
+
+@st.cache_data(show_spinner="Building crop benchmark from other fields' real Sentinel-2 history...")
+def _crop_benchmark_series(crop_name, benchmark_year, exclude_label=None):
+    """
+    Reference NDVI-by-month curve for `crop_name`: averages the real, per-field
+    -masked NDVI of up to BENCHMARK_FIELDS_PER_CROP *other* EuroCrops fields
+    declared as that same crop (excluding fields smaller than
+    MIN_BENCHMARK_FIELD_AREA_HA — too few pixels to trust), for `benchmark_year`.
+    This is the "how this crop should behave" baseline — built from actual
+    satellite history of fields with a known, official crop declaration, not
+    a textbook curve. Also returns the per-month standard deviation across
+    those fields, used to draw a +/-1 std "acceptable range" band around the
+    benchmark line.
+    Returns (mean {month: ndvi_or_None}, std {month: ndvi_or_None}, [field labels used]).
+    """
+    if CROP_BENCHMARKS_STORE_AVAILABLE:
+        cached_mean, cached_std, cached_fields = crop_benchmarks.load_benchmark(crop_name, benchmark_year)
+        if cached_mean is not None and exclude_label not in cached_fields:
+            return cached_mean, cached_std, cached_fields
+
+    all_fields = eurocrops_fields.load_eurocrops_fields()
+    all_crops = eurocrops_fields.load_eurocrops_field_crops()
+    all_areas = eurocrops_fields.load_eurocrops_field_areas()
+    candidates = sorted(
+        label for label, crop in all_crops.items()
+        if crop == crop_name and label != exclude_label
+        and all_areas.get(label, 0) >= MIN_BENCHMARK_FIELD_AREA_HA
+    )
+    sample_labels = candidates[:BENCHMARK_FIELDS_PER_CROP]
+
+    per_month_values = {month: [] for month in range(1, 13)}
+    for label in sample_labels:
+        polygon = all_fields[label]
+        padded = fetch_sat._padded_bbox(polygon, pad_ratio=0.5)
+        padded_bbox = (padded[0], padded[2], padded[1], padded[3])
+        for month, value in _monthly_ndvi_series(polygon, padded_bbox, benchmark_year).items():
+            if value is not None:
+                per_month_values[month].append(value)
+
+    benchmark_mean = {
+        month: (float(np.mean(values)) if values else None)
+        for month, values in per_month_values.items()
+    }
+    benchmark_std = {
+        month: (float(np.std(values)) if len(values) > 1 else 0.0 if values else None)
+        for month, values in per_month_values.items()
+    }
+
+    if CROP_BENCHMARKS_STORE_AVAILABLE:
+        crop_benchmarks.save_benchmark(crop_name, benchmark_year, benchmark_mean, benchmark_std, sample_labels)
+
+    return benchmark_mean, benchmark_std, sample_labels
+
+
+def _curve_correlation(actual, benchmark):
+    """Pearson correlation between two {month: value} series over the months
+    both have data for. None if fewer than 3 overlapping months or either
+    curve is flat (zero variance, correlation undefined)."""
+    common_months = [m for m in range(1, 13) if actual.get(m) is not None and benchmark.get(m) is not None]
+    if len(common_months) < 3:
+        return None, common_months
+    a = np.array([actual[m] for m in common_months])
+    b = np.array([benchmark[m] for m in common_months])
+    if np.std(a) == 0 or np.std(b) == 0:
+        return None, common_months
+    return float(np.corrcoef(a, b)[0, 1]), common_months
 
 try:
     from streamlit_mic_recorder import speech_to_text
@@ -117,9 +255,6 @@ else:
         except Exception as exc:
             st.error(f"❌ {exc}")
 
-    import calendar
-    import datetime
-
     FIELDS = {
         # "Parcel #4112 (Kać)": [
         #     [19.9248, 45.2882], [19.9348, 45.2885], [19.9352, 45.2842],
@@ -138,12 +273,22 @@ else:
         # ],
     }
 
-    FIELD_SOURCE_OPTIONS = ["OpenStreetMap", "Fields of the World (ML)", "EuroCrops (Slovenia, official)"]
+    FIELD_SOURCE_OPTIONS = ["EuroCrops (Slovenia, official)", "OpenStreetMap", "Fields of the World (ML)"]
     field_sources = st.multiselect(
         "Field boundary source(s):",
         FIELD_SOURCE_OPTIONS,
         default=FIELD_SOURCE_OPTIONS,
     )
+
+    # EuroCrops is loaded first so its fields land first in FIELDS, making one
+    # of them the selectbox's default (index 0) pick below.
+    FIELD_CROPS = {}
+    if EUROCROPS_MODULE_AVAILABLE and "EuroCrops (Slovenia, official)" in field_sources:
+        try:
+            FIELDS.update(_cached_eurocrops_fields())
+            FIELD_CROPS.update(_cached_eurocrops_crops())
+        except Exception as exc:
+            st.caption(f"⚠️ EuroCrops fields unavailable: {exc}")
 
     if OSM_MODULE_AVAILABLE and "OpenStreetMap" in field_sources:
         try:
@@ -156,12 +301,6 @@ else:
             FIELDS.update(_cached_ftw_fields())
         except Exception as exc:
             st.caption(f"⚠️ FTW fields unavailable: {exc}")
-
-    if EUROCROPS_MODULE_AVAILABLE and "EuroCrops (Slovenia, official)" in field_sources:
-        try:
-            FIELDS.update(_cached_eurocrops_fields())
-        except Exception as exc:
-            st.caption(f"⚠️ EuroCrops fields unavailable: {exc}")
 
     field_name = st.selectbox("Field:", list(FIELDS.keys()))
     parcel_4112_polygon = FIELDS[field_name]
@@ -206,6 +345,81 @@ else:
     month_end = datetime.date(live_year, live_month, last_day)
     date_to = min(month_end, today).isoformat()
 
+    if field_name in FIELD_CROPS:
+        crop_name = FIELD_CROPS[field_name]
+        monthly_ndvi = _monthly_ndvi_series(parcel_4112_polygon, padded_bbox, live_year)
+        available = {m: v for m, v in monthly_ndvi.items() if v is not None}
+
+        # Fixed to the EuroCrops declaration year (2023), not "last full year":
+        # that's the one year we actually know the declared crop was correct.
+        # Using a later year risks the field having rotated to a different
+        # crop since the declaration, contaminating the benchmark itself.
+        benchmark_year = CROP_DECLARATION_YEAR
+        benchmark, benchmark_std, benchmark_fields = _crop_benchmark_series(
+            crop_name, benchmark_year, exclude_label=field_name
+        )
+        benchmark_available = {m: v for m, v in benchmark.items() if v is not None}
+        correlation, common_months = _curve_correlation(monthly_ndvi, benchmark)
+
+        chart_col, caption_col = st.columns([1, 2])
+        with chart_col:
+            if available or benchmark_available:
+                fig_ndvi, ax_ndvi = plt.subplots(figsize=(4.5, 1.8))
+                if benchmark_available:
+                    bench_order = sorted(benchmark_available)
+                    bench_values = np.array([benchmark_available[m] for m in bench_order])
+                    bench_stds = np.array([benchmark_std.get(m) or 0.0 for m in bench_order])
+                    bench_labels = [calendar.month_abbr[m] for m in bench_order]
+                    ax_ndvi.fill_between(
+                        bench_labels, bench_values - bench_stds, bench_values + bench_stds,
+                        color="#888888", alpha=0.2, linewidth=0, label="±1 std (acceptable range)",
+                    )
+                    ax_ndvi.plot(
+                        bench_labels, bench_values,
+                        color="#888888", linewidth=1.5, linestyle="--",
+                        label=f"benchmark {benchmark_year}",
+                    )
+                if available:
+                    month_order = sorted(available)
+                    ax_ndvi.plot(
+                        [calendar.month_abbr[m] for m in month_order],
+                        [available[m] for m in month_order],
+                        marker="o", color="#1E5631", linewidth=2, markersize=4,
+                        label=f"{live_year}",
+                    )
+                ax_ndvi.set_ylim(-0.1, 1.0)
+                ax_ndvi.tick_params(labelsize=7)
+                ax_ndvi.grid(True, linestyle="--", alpha=0.3)
+                ax_ndvi.legend(fontsize=6, loc="lower right")
+                fig_ndvi.tight_layout(pad=0.3)
+                st.pyplot(fig_ndvi, use_container_width=False)
+            else:
+                st.caption("No cloud-free NDVI data available yet for this year.")
+        with caption_col:
+            st.markdown(f"**📈 Monthly NDVI — {crop_name}, {live_year}**")
+            st.caption(
+                f"Solid = this field, real Sentinel-2 masked to its own polygon. Dashed + shaded band = "
+                f"benchmark mean ±1 std, from {len(benchmark_fields)} other fields declared as "
+                f"\"{crop_name}\" ({benchmark_year}, same methodology)."
+            )
+            st.caption(
+                f"⚠️ Crop is per the EuroCrops {CROP_DECLARATION_YEAR} declaration (the last one in "
+                f"this sample) — it may have since rotated to a different crop for {live_year}."
+            )
+            skipped = sorted(set(monthly_ndvi) - set(available))
+            if skipped:
+                st.caption(f"No cloud-free data for: {', '.join(calendar.month_abbr[m] for m in skipped)}.")
+
+            if correlation is None:
+                st.info("ℹ️ Not enough overlapping cloud-free months yet to verify this year against the benchmark.")
+            elif correlation >= 0.75:
+                st.success(f"✅ Matches declared crop \"{crop_name}\" — curve correlates {correlation:.2f} with benchmark.")
+            elif correlation >= 0.4:
+                st.warning(f"⚠️ Partial match with declared crop \"{crop_name}\" — correlation only {correlation:.2f}. Worth a closer look.")
+            else:
+                st.error(f"❌ Doesn't match expected pattern for declared crop \"{crop_name}\" — correlation {correlation:.2f}. Possible crop misdeclaration or field anomaly.")
+        st.markdown("---")
+
     def draw_field_boundary(png_bytes, polygon_coords, image_bbox):
         """Overlays the field's vector polygon on a fetched product PNG.
 
@@ -214,15 +428,7 @@ else:
         or the outline won't line up with the field in the picture.
         """
         image = Image.open(io.BytesIO(png_bytes)).convert("RGBA")
-        lon_min, lon_max, lat_min, lat_max = image_bbox
-        width, height = image.size
-        points = [
-            (
-                (lon - lon_min) / (lon_max - lon_min) * width,
-                (1 - (lat - lat_min) / (lat_max - lat_min)) * height,
-            )
-            for lon, lat in polygon_coords
-        ]
+        points = _project_polygon_to_pixels(polygon_coords, image_bbox, image.size)
         draw = ImageDraw.Draw(image)
         # White halo first so the outline stays visible on both light and dark tiles.
         draw.line(points, fill=(255, 255, 255, 255), width=4, joint="curve")

@@ -112,7 +112,7 @@ NDVI_EVALSCRIPT = """
 function setup() {
   return {
     input: ["B04", "B08", "dataMask"],
-    output: { bands: 4 }
+    output: { bands: 4, sampleType: "FLOAT32" }
   };
 }
 function evaluatePixel(sample) {
