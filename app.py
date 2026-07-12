@@ -433,18 +433,6 @@ else:
                 st.caption("No cloud-free NDVI data available yet for this year.")
         with caption_col:
             st.markdown(f"**📈 Monthly NDVI — {crop_name}, {live_year}**")
-            st.caption(
-                f"Solid = this field, real Sentinel-2 masked to its own polygon. Dashed + shaded band = "
-                f"benchmark mean ±1 std, from {len(benchmark_fields)} other fields declared as "
-                f"\"{crop_name}\" ({benchmark_year}, same methodology)."
-            )
-            st.caption(
-                f"⚠️ Crop is per the EuroCrops {CROP_DECLARATION_YEAR} declaration (the last one in "
-                f"this sample) — it may have since rotated to a different crop for {live_year}."
-            )
-            skipped = sorted(set(monthly_ndvi) - set(available))
-            if skipped:
-                st.caption(f"No cloud-free data for: {', '.join(calendar.month_abbr[m] for m in skipped)}.")
 
             if match_score is None:
                 st.info("ℹ️ Not enough overlapping cloud-free months yet to verify this year against the benchmark.")
@@ -460,6 +448,19 @@ else:
                 "statistical probability (no labeled wrong-declaration examples exist to "
                 "calibrate against)."
             )
+
+            st.caption(
+                f"Solid = this field, real Sentinel-2 masked to its own polygon. Dashed + shaded band = "
+                f"benchmark mean ±1 std, from {len(benchmark_fields)} other fields declared as "
+                f"\"{crop_name}\" ({benchmark_year}, same methodology)."
+            )
+            st.caption(
+                f"⚠️ Crop is per the EuroCrops {CROP_DECLARATION_YEAR} declaration (the last one in "
+                f"this sample) — it may have since rotated to a different crop for {live_year}."
+            )
+            skipped = sorted(set(monthly_ndvi) - set(available))
+            if skipped:
+                st.caption(f"No cloud-free data for: {', '.join(calendar.month_abbr[m] for m in skipped)}.")
         st.markdown("---")
 
     def draw_field_boundary(png_bytes, polygon_coords, image_bbox):
