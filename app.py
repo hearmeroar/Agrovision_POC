@@ -141,6 +141,31 @@ MIN_BENCHMARK_FIELD_AREA_HA = 0.3  # below this, too few clean Sentinel-2 (10m) 
 CROP_DECLARATION_YEAR = 2023  # the EuroCrops sample's actual declaration year (sample_fields_eurocrops_si.geojson)
 
 
+def _balanced_candidate_sample(candidates, n):
+    """
+    Round-robins across country groups (parsed from the "EuroCrops <CC> #"
+    label prefix) instead of a plain sorted-prefix slice. A plain
+    sorted(candidates)[:n] would always pick "EuroCrops SI ..." labels first
+    ('I' < 'K' alphabetically) whenever Slovenia alone already has >= n
+    eligible fields for that crop — silently ignoring the pooled Slovak
+    candidates for every common crop and defeating the point of pooling.
+    """
+    groups = {}
+    for label in candidates:
+        country = label.split()[1] if label.startswith("EuroCrops ") else "?"
+        groups.setdefault(country, []).append(label)
+    for group in groups.values():
+        group.sort()
+    picked = []
+    while len(picked) < n and any(groups.values()):
+        for country in sorted(groups):
+            if groups[country]:
+                picked.append(groups[country].pop(0))
+                if len(picked) >= n:
+                    break
+    return picked
+
+
 @st.cache_data(show_spinner="Building crop benchmark from other fields' real Sentinel-2 history...")
 def _crop_benchmark_series(crop_name, benchmark_year, exclude_label=None):
     """
@@ -172,7 +197,7 @@ def _crop_benchmark_series(crop_name, benchmark_year, exclude_label=None):
         if crop_mapping.canonical_crop(crop) == target_canonical and label != exclude_label
         and all_areas.get(label, 0) >= MIN_BENCHMARK_FIELD_AREA_HA
     )
-    sample_labels = candidates[:BENCHMARK_FIELDS_PER_CROP]
+    sample_labels = _balanced_candidate_sample(candidates, BENCHMARK_FIELDS_PER_CROP)
 
     per_month_values = {month: [] for month in range(1, 13)}
     for label in sample_labels:
