@@ -76,6 +76,12 @@ def load_benchmark(crop_name: str, year: int):
     return benchmark, benchmark_std, entry["source_fields"]
 
 
+def list_crops(year: int) -> list:
+    """Crop names that already have a cached benchmark for `year`."""
+    store = _load_store()
+    return [crop for crop, years in store.items() if str(year) in years]
+
+
 def save_benchmark(crop_name: str, year: int, benchmark: dict, benchmark_std: dict, source_fields: list) -> None:
     store = _load_store()
     store.setdefault(crop_name, {})[str(year)] = {

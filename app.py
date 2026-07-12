@@ -206,6 +206,31 @@ def _crop_match_score(actual, benchmark, benchmark_std, correlation, common_mont
     return score, band_coverage
 
 
+def _best_alternative_crop(monthly_ndvi, declared_crop, year):
+    """
+    When a field doesn't match its declared crop, checks its curve against
+    every *other* crop that already has a cached benchmark for `year` (no
+    new Sentinel Hub calls — reuses whatever build_crop_benchmarks.py /
+    on-demand computation already produced) and returns whichever one fits
+    best, as a "might actually be X" suggestion. Returns (crop_name, score)
+    or (None, None) if nothing scores.
+    """
+    if not CROP_BENCHMARKS_STORE_AVAILABLE:
+        return None, None
+    best_crop, best_score = None, None
+    for candidate_crop in crop_benchmarks.list_crops(year):
+        if candidate_crop == declared_crop:
+            continue
+        candidate_benchmark, candidate_std, _fields = crop_benchmarks.load_benchmark(candidate_crop, year)
+        if candidate_benchmark is None:
+            continue
+        corr, common = _curve_correlation(monthly_ndvi, candidate_benchmark)
+        score, _coverage = _crop_match_score(monthly_ndvi, candidate_benchmark, candidate_std, corr, common)
+        if score is not None and (best_score is None or score > best_score):
+            best_crop, best_score = candidate_crop, score
+    return best_crop, best_score
+
+
 try:
     from streamlit_mic_recorder import speech_to_text
     VOICE_INPUT_AVAILABLE = True
@@ -442,6 +467,12 @@ else:
                 st.warning(f"⚠️ {match_score:.0f}% match with declared crop \"{crop_name}\" — worth a closer look (shape corr. {correlation:.2f}, {band_coverage:.0%} within range).")
             else:
                 st.error(f"❌ {match_score:.0f}% match with declared crop \"{crop_name}\" — possible misdeclaration or field anomaly (shape corr. {correlation:.2f}, {band_coverage:.0%} within range).")
+
+            if match_score is not None and match_score < 75:
+                alt_crop, alt_score = _best_alternative_crop(monthly_ndvi, crop_name, benchmark_year)
+                if alt_crop is not None and alt_score > match_score:
+                    st.warning(f"🔎 Curve fits \"{alt_crop}\" better ({alt_score:.0f}% match) — could actually be growing that instead.")
+
             st.caption(
                 "Score = heuristic blend of curve-shape correlation and how often this "
                 "field falls within the benchmark's own ±1 std range — not a calibrated "
