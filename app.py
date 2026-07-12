@@ -23,6 +23,12 @@ try:
 except ImportError:
     FTW_MODULE_AVAILABLE = False
 
+try:
+    import eurocrops_fields
+    EUROCROPS_MODULE_AVAILABLE = True
+except ImportError:
+    EUROCROPS_MODULE_AVAILABLE = False
+
 
 @st.cache_data(ttl=3600, show_spinner="Loading field boundaries from OpenStreetMap...")
 def _cached_osm_fields(bbox):
@@ -32,6 +38,11 @@ def _cached_osm_fields(bbox):
 @st.cache_data(show_spinner="Loading field boundaries from Fields of the World...")
 def _cached_ftw_fields():
     return ftw_fields.load_ftw_fields()
+
+
+@st.cache_data(show_spinner="Loading official EuroCrops (Slovenia) field boundaries...")
+def _cached_eurocrops_fields():
+    return eurocrops_fields.load_eurocrops_fields()
 
 try:
     from streamlit_mic_recorder import speech_to_text
@@ -70,21 +81,29 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Unified clean horizontal navbar header
-st.markdown(
-    """
-    <div style="display: flex; align-items: center; justify-content: space-between; background-color: #1a1a1a; padding: 10px 20px; border-radius: 8px; margin-bottom: 20px;">
-        <div style="display: flex; align-items: center; gap: 15px;">
-            <span style="font-size: 28px;">🇷🇸</span>
-            <span style="font-size: 22px; font-weight: bold; color: white; letter-spacing: 0.5px;">eAgrar AI-Verification System</span>
+# Unified clean horizontal navbar header. Reserved here (top of the page) but
+# filled in below once a field is actually selected, so the subtitle reflects
+# the real selected field/coordinates instead of a hardcoded claim.
+def _render_header(subtitle):
+    st.markdown(
+        f"""
+        <div style="display: flex; align-items: center; justify-content: space-between; background-color: #1a1a1a; padding: 10px 20px; border-radius: 8px; margin-bottom: 20px;">
+            <div style="display: flex; align-items: center; gap: 15px;">
+                <span style="font-size: 28px;">🛰️</span>
+                <span style="font-size: 22px; font-weight: bold; color: white; letter-spacing: 0.5px;">eAgrar AI-Verification System</span>
+            </div>
+            <div style="font-size: 14px; color: #888888; font-weight: 500;">
+                {subtitle}
+            </div>
         </div>
-        <div style="font-size: 14px; color: #888888; font-weight: 500;">
-            Live Satellite Monitoring: Vojvodina, Novi Sad (Kać), Land Parcel #4112
-        </div>
-    </div>
-    """, 
-    unsafe_allow_html=True
-)
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+header_placeholder = st.empty()
+with header_placeholder:
+    _render_header("Select a field below to begin live satellite monitoring")
 
 # === LIVE CDSE CONNECTION DIAGNOSTICS (isolated, does not affect mock NDVI pipeline below) ===
 st.subheader("🛰️ CDSE Live Connection Status (OAuth2)")
@@ -119,24 +138,30 @@ else:
         # ],
     }
 
-    field_source = st.radio(
-        "Field boundary source:",
-        ["OpenStreetMap", "Fields of the World (ML)", "Both"],
-        index=2,
-        horizontal=True,
+    FIELD_SOURCE_OPTIONS = ["OpenStreetMap", "Fields of the World (ML)", "EuroCrops (Slovenia, official)"]
+    field_sources = st.multiselect(
+        "Field boundary source(s):",
+        FIELD_SOURCE_OPTIONS,
+        default=FIELD_SOURCE_OPTIONS,
     )
 
-    if OSM_MODULE_AVAILABLE and field_source in ("OpenStreetMap", "Both"):
+    if OSM_MODULE_AVAILABLE and "OpenStreetMap" in field_sources:
         try:
             FIELDS.update(_cached_osm_fields((19.90, 19.96, 45.26, 45.30)))
         except Exception as exc:
             st.caption(f"⚠️ OSM fields unavailable: {exc}")
 
-    if FTW_MODULE_AVAILABLE and field_source in ("Fields of the World (ML)", "Both"):
+    if FTW_MODULE_AVAILABLE and "Fields of the World (ML)" in field_sources:
         try:
             FIELDS.update(_cached_ftw_fields())
         except Exception as exc:
             st.caption(f"⚠️ FTW fields unavailable: {exc}")
+
+    if EUROCROPS_MODULE_AVAILABLE and "EuroCrops (Slovenia, official)" in field_sources:
+        try:
+            FIELDS.update(_cached_eurocrops_fields())
+        except Exception as exc:
+            st.caption(f"⚠️ EuroCrops fields unavailable: {exc}")
 
     field_name = st.selectbox("Field:", list(FIELDS.keys()))
     parcel_4112_polygon = FIELDS[field_name]
@@ -147,6 +172,13 @@ else:
         parcel_4112_polygon, pad_ratio=0.5
     )
     padded_bbox = (padded_lon_min, padded_lon_max, padded_lat_min, padded_lat_max)
+
+    lat_center = (bbox[2] + bbox[3]) / 2
+    lon_center = (bbox[0] + bbox[1]) / 2
+    with header_placeholder:
+        _render_header(
+            f"Live Satellite Monitoring: {field_name} — {lat_center:.4f}°N, {lon_center:.4f}°E"
+        )
 
     today = datetime.date.today()
     default_month = today.month - 1
@@ -291,102 +323,108 @@ else:
                         with placeholder.container():
                             render_product_result(product, new_result)
 
-# HISTORICAL NDVI DATA TIME-SERIES
-months = ["March", "April", "May", "June", "July", "August", "September", "October"]
-historical_ndvi = [0.22, 0.45, 0.82, 0.75, 0.20, 0.18, 0.15, 0.12]
-
-# SPLIT UI INTO TWO EQUAL COLUMNS
-col_left, col_right = st.columns(2)
-
-# === RIGHT COLUMN: MONITORING CONTROLS & AI ENGINE ===
-with col_right:
-    st.markdown("##### 📅 Timeline & Anomaly Controls")
-    
-    s_col1, s_col2 = st.columns(2)
-    with s_col1:
-        selected_month_idx = st.slider("Inspection Month:", 0, 7, 2, format="")
-        st.write(f"Selected Target: **{months[selected_month_idx]}**")
-    with s_col2:
-        anomaly_factor = st.slider("Field Condition Factor (1.0 = Normal):", 0.2, 1.2, 1.0, 0.1)
-    
-    # FIX: Guaranteed immutable list replication to keep timeline context intact
-    current_year_ndvi = list(historical_ndvi)
-    current_year_ndvi[selected_month_idx] = float(np.clip(historical_ndvi[selected_month_idx] * anomaly_factor, 0, 1))
-    
-    st.markdown("---")
-    st.markdown("##### 🧠 Computer Vision Engine Verdict")
-    
-    active_ndvi = current_year_ndvi[selected_month_idx]
-    deviation = historical_ndvi[selected_month_idx] - active_ndvi
-    
-    if deviation > 0.3:
-        st.markdown(
-            f"""
-            <div style="background-color: #333333; padding: 15px; border-radius: 5px; color: white; border-left: 5px solid #555555;">
-                <strong>⚠️ WARNING: SIGNIFICANT VEGETATION ANOMALY IN {months[selected_month_idx].upper()}</strong><br>
-                Current NDVI dropped to {active_ndvi:.2f} (Expected: {historical_ndvi[selected_month_idx]:.2f}). 
-                eAgrar subsidy payouts suspended automatically pending human inspector verification.
-            </div>
-            """, 
-            unsafe_allow_html=True
-        )
-    else:
-        st.success(f"✅ VERIFICATION SUCCESSFUL: FIELD STABLE IN {months[selected_month_idx].upper()}")
-        st.info(f"Current NDVI: {active_ndvi:.2f} aligns perfectly with the 5-year historical profile.")
-
-# === LEFT COLUMN: DYNAMIC GIS RASTER CONTAINER ===
-with col_left:
-    st.markdown("##### 🛰️ High-Resolution Target Raster Scan")
-    st.write(f"Center Coordinates: `45.2845° N, 19.9312° E` | Target Month: {months[selected_month_idx]}")
-    
-    fig_map, ax_map = plt.subplots(figsize=(7, 5.2))
-    
-    np.random.seed(101)
-    raster_bg = np.random.uniform(0.15, 0.25, (100, 100))
-    raster_bg[30:75, 25:75] = active_ndvi + np.random.normal(0, 0.02, (45, 50))
-    
-    ax_map.imshow(raster_bg, cmap="YlGn", extent=[19.920, 19.940, 45.275, 45.295], origin="lower", vmin=0.0, vmax=1.0)
-    
-    exact_field_polygon = [
-        [19.9248, 45.2882], 
-        [19.9348, 45.2885], 
-        [19.9352, 45.2842], 
-        [19.9356, 45.2808], 
-        [19.9256, 45.2804], 
-        [19.9252, 45.2844], 
-        [19.9248, 45.2882]  
-    ]
-    poly_x, poly_y = zip(*exact_field_polygon)
-    
-    border_color = "#D2143A" if deviation > 0.3 else "#00FF66"
-    ax_map.plot(poly_x, poly_y, color=border_color, linewidth=3, label="Parcel #4112 Vector Bounds")
-    ax_map.fill(poly_x, poly_y, color=border_color, alpha=0.10)
-    ax_map.scatter([19.9312], [45.2845], color="#1E5631", edgecolor="black", s=150, zorder=5, label="Sensor Node")
-    
-    ax_map.set_xlabel("Longitude (°E)", fontsize=9)
-    ax_map.set_ylabel("Latitude (°N)", fontsize=9)
-    ax_map.grid(True, linestyle=":", alpha=0.4, color="black")
-    ax_map.legend(loc="lower left", fontsize=8)
-    
-    st.pyplot(fig_map)
-
-# === CONTINUATION OF THE RIGHT COLUMN (Strict Technical Matplotlib Curve) ===
-with col_right:
-    st.write("") 
-    fig_chart, ax_chart = plt.subplots(figsize=(10, 2.8))
-    
-    ax_chart.plot(months, historical_ndvi, label="5-Year Historical Baseline", color="#888888", linestyle="--", linewidth=2)
-    
-    # Isolated slice tracking array safely before passing data nodes
-    visible_months = months[:selected_month_idx+1]
-    visible_ndvi = current_year_ndvi[:selected_month_idx+1]
-    
-    ax_chart.plot(visible_months, visible_ndvi, 
-            label="Current Season Track", color="#1E5631" if deviation <= 0.3 else "#111111", marker="o", linewidth=2.5)
-    
-    ax_chart.scatter(months[selected_month_idx], current_year_ndvi[selected_month_idx], color="black", s=80, zorder=5)
-    ax_chart.set_ylabel("NDVI Value")
-    ax_chart.set_ylim(0, 1.0)
-    ax_chart.grid(True, linestyle="--", alpha=0.3)
-    ax_chart.legend(loc="upper right")
-    st.pyplot(fig_chart)
+# === Everything below is mocked demo data (hardcoded "historical" NDVI,
+# a random-noise raster standing in for imagery, a fixed old Parcel #4112
+# polygon unrelated to whatever field is actually selected above) — none of
+# it reflects the live CDSE/Sentinel Hub data from the section above, so it's
+# disabled to avoid mixing real and fake data in the same dashboard.
+#
+# # HISTORICAL NDVI DATA TIME-SERIES
+# months = ["March", "April", "May", "June", "July", "August", "September", "October"]
+# historical_ndvi = [0.22, 0.45, 0.82, 0.75, 0.20, 0.18, 0.15, 0.12]
+#
+# # SPLIT UI INTO TWO EQUAL COLUMNS
+# col_left, col_right = st.columns(2)
+#
+# # === RIGHT COLUMN: MONITORING CONTROLS & AI ENGINE ===
+# with col_right:
+#     st.markdown("##### 📅 Timeline & Anomaly Controls")
+#
+#     s_col1, s_col2 = st.columns(2)
+#     with s_col1:
+#         selected_month_idx = st.slider("Inspection Month:", 0, 7, 2, format="")
+#         st.write(f"Selected Target: **{months[selected_month_idx]}**")
+#     with s_col2:
+#         anomaly_factor = st.slider("Field Condition Factor (1.0 = Normal):", 0.2, 1.2, 1.0, 0.1)
+#
+#     # FIX: Guaranteed immutable list replication to keep timeline context intact
+#     current_year_ndvi = list(historical_ndvi)
+#     current_year_ndvi[selected_month_idx] = float(np.clip(historical_ndvi[selected_month_idx] * anomaly_factor, 0, 1))
+#
+#     st.markdown("---")
+#     st.markdown("##### 🧠 Computer Vision Engine Verdict")
+#
+#     active_ndvi = current_year_ndvi[selected_month_idx]
+#     deviation = historical_ndvi[selected_month_idx] - active_ndvi
+#
+#     if deviation > 0.3:
+#         st.markdown(
+#             f"""
+#             <div style="background-color: #333333; padding: 15px; border-radius: 5px; color: white; border-left: 5px solid #555555;">
+#                 <strong>⚠️ WARNING: SIGNIFICANT VEGETATION ANOMALY IN {months[selected_month_idx].upper()}</strong><br>
+#                 Current NDVI dropped to {active_ndvi:.2f} (Expected: {historical_ndvi[selected_month_idx]:.2f}).
+#                 eAgrar subsidy payouts suspended automatically pending human inspector verification.
+#             </div>
+#             """,
+#             unsafe_allow_html=True
+#         )
+#     else:
+#         st.success(f"✅ VERIFICATION SUCCESSFUL: FIELD STABLE IN {months[selected_month_idx].upper()}")
+#         st.info(f"Current NDVI: {active_ndvi:.2f} aligns perfectly with the 5-year historical profile.")
+#
+# # === LEFT COLUMN: DYNAMIC GIS RASTER CONTAINER ===
+# with col_left:
+#     st.markdown("##### 🛰️ High-Resolution Target Raster Scan")
+#     st.write(f"Center Coordinates: `45.2845° N, 19.9312° E` | Target Month: {months[selected_month_idx]}")
+#
+#     fig_map, ax_map = plt.subplots(figsize=(7, 5.2))
+#
+#     np.random.seed(101)
+#     raster_bg = np.random.uniform(0.15, 0.25, (100, 100))
+#     raster_bg[30:75, 25:75] = active_ndvi + np.random.normal(0, 0.02, (45, 50))
+#
+#     ax_map.imshow(raster_bg, cmap="YlGn", extent=[19.920, 19.940, 45.275, 45.295], origin="lower", vmin=0.0, vmax=1.0)
+#
+#     exact_field_polygon = [
+#         [19.9248, 45.2882],
+#         [19.9348, 45.2885],
+#         [19.9352, 45.2842],
+#         [19.9356, 45.2808],
+#         [19.9256, 45.2804],
+#         [19.9252, 45.2844],
+#         [19.9248, 45.2882]
+#     ]
+#     poly_x, poly_y = zip(*exact_field_polygon)
+#
+#     border_color = "#D2143A" if deviation > 0.3 else "#00FF66"
+#     ax_map.plot(poly_x, poly_y, color=border_color, linewidth=3, label="Parcel #4112 Vector Bounds")
+#     ax_map.fill(poly_x, poly_y, color=border_color, alpha=0.10)
+#     ax_map.scatter([19.9312], [45.2845], color="#1E5631", edgecolor="black", s=150, zorder=5, label="Sensor Node")
+#
+#     ax_map.set_xlabel("Longitude (°E)", fontsize=9)
+#     ax_map.set_ylabel("Latitude (°N)", fontsize=9)
+#     ax_map.grid(True, linestyle=":", alpha=0.4, color="black")
+#     ax_map.legend(loc="lower left", fontsize=8)
+#
+#     st.pyplot(fig_map)
+#
+# # === CONTINUATION OF THE RIGHT COLUMN (Strict Technical Matplotlib Curve) ===
+# with col_right:
+#     st.write("")
+#     fig_chart, ax_chart = plt.subplots(figsize=(10, 2.8))
+#
+#     ax_chart.plot(months, historical_ndvi, label="5-Year Historical Baseline", color="#888888", linestyle="--", linewidth=2)
+#
+#     # Isolated slice tracking array safely before passing data nodes
+#     visible_months = months[:selected_month_idx+1]
+#     visible_ndvi = current_year_ndvi[:selected_month_idx+1]
+#
+#     ax_chart.plot(visible_months, visible_ndvi,
+#             label="Current Season Track", color="#1E5631" if deviation <= 0.3 else "#111111", marker="o", linewidth=2.5)
+#
+#     ax_chart.scatter(months[selected_month_idx], current_year_ndvi[selected_month_idx], color="black", s=80, zorder=5)
+#     ax_chart.set_ylabel("NDVI Value")
+#     ax_chart.set_ylim(0, 1.0)
+#     ax_chart.grid(True, linestyle="--", alpha=0.3)
+#     ax_chart.legend(loc="upper right")
+#     st.pyplot(fig_chart)
