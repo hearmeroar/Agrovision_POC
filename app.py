@@ -182,6 +182,30 @@ def _curve_correlation(actual, benchmark):
         return None, common_months
     return float(np.corrcoef(a, b)[0, 1]), common_months
 
+
+def _crop_match_score(actual, benchmark, benchmark_std, correlation, common_months):
+    """
+    Heuristic 0-100% "match score" for the crop-declaration verdict — NOT a
+    calibrated statistical probability (we have no labeled examples of a
+    wrong declaration to calibrate against), just a transparent blend of:
+      - shape similarity: correlation rescaled from [-1,1] to [0,1]
+      - band coverage: fraction of overlapping months where the actual value
+        falls within the benchmark's own +/-1 std range
+    Returns (score_0_to_100 or None, band_coverage_fraction or None).
+    """
+    if correlation is None or not common_months:
+        return None, None
+    within_band = 0
+    for m in common_months:
+        std = benchmark_std.get(m) or 0.0
+        if abs(actual[m] - benchmark[m]) <= std:
+            within_band += 1
+    band_coverage = within_band / len(common_months)
+    corr_component = (correlation + 1) / 2
+    score = 100 * (0.5 * corr_component + 0.5 * band_coverage)
+    return score, band_coverage
+
+
 try:
     from streamlit_mic_recorder import speech_to_text
     VOICE_INPUT_AVAILABLE = True
@@ -360,6 +384,9 @@ else:
         )
         benchmark_available = {m: v for m, v in benchmark.items() if v is not None}
         correlation, common_months = _curve_correlation(monthly_ndvi, benchmark)
+        match_score, band_coverage = _crop_match_score(
+            monthly_ndvi, benchmark, benchmark_std, correlation, common_months
+        )
 
         chart_col, caption_col = st.columns([1, 2])
         with chart_col:
@@ -419,14 +446,20 @@ else:
             if skipped:
                 st.caption(f"No cloud-free data for: {', '.join(calendar.month_abbr[m] for m in skipped)}.")
 
-            if correlation is None:
+            if match_score is None:
                 st.info("ℹ️ Not enough overlapping cloud-free months yet to verify this year against the benchmark.")
-            elif correlation >= 0.75:
-                st.success(f"✅ Matches declared crop \"{crop_name}\" — curve correlates {correlation:.2f} with benchmark.")
-            elif correlation >= 0.4:
-                st.warning(f"⚠️ Partial match with declared crop \"{crop_name}\" — correlation only {correlation:.2f}. Worth a closer look.")
+            elif match_score >= 75:
+                st.success(f"✅ {match_score:.0f}% match with declared crop \"{crop_name}\" (shape corr. {correlation:.2f}, {band_coverage:.0%} of months within range).")
+            elif match_score >= 40:
+                st.warning(f"⚠️ {match_score:.0f}% match with declared crop \"{crop_name}\" — worth a closer look (shape corr. {correlation:.2f}, {band_coverage:.0%} within range).")
             else:
-                st.error(f"❌ Doesn't match expected pattern for declared crop \"{crop_name}\" — correlation {correlation:.2f}. Possible crop misdeclaration or field anomaly.")
+                st.error(f"❌ {match_score:.0f}% match with declared crop \"{crop_name}\" — possible misdeclaration or field anomaly (shape corr. {correlation:.2f}, {band_coverage:.0%} within range).")
+            st.caption(
+                "Score = heuristic blend of curve-shape correlation and how often this "
+                "field falls within the benchmark's own ±1 std range — not a calibrated "
+                "statistical probability (no labeled wrong-declaration examples exist to "
+                "calibrate against)."
+            )
         st.markdown("---")
 
     def draw_field_boundary(png_bytes, polygon_coords, image_bbox):
