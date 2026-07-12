@@ -33,6 +33,7 @@ if os.path.exists(secrets_path):
 import fetch_sat
 import eurocrops_fields
 import crop_benchmarks
+import crop_mapping
 
 BENCHMARK_FIELDS_PER_CROP = 10
 MIN_BENCHMARK_FIELD_AREA_HA = 0.3  # below this, too few clean Sentinel-2 (10m) pixels post-masking
@@ -86,9 +87,14 @@ def _monthly_ndvi_series(polygon_coords, padded_bbox, year):
 
 
 def build_benchmark(crop_name, all_fields, all_crops, all_areas):
+    # Match by canonical crop, not the raw string, so e.g. Slovak "Pšenica
+    # letná ozimná" and Slovenian "pšenica (ozimna)" (both winter wheat) pool
+    # together instead of two disjoint, thinner benchmarks.
+    target_canonical = crop_mapping.canonical_crop(crop_name)
     candidates = sorted(
         label for label, crop in all_crops.items()
-        if crop == crop_name and all_areas.get(label, 0) >= MIN_BENCHMARK_FIELD_AREA_HA
+        if crop_mapping.canonical_crop(crop) == target_canonical
+        and all_areas.get(label, 0) >= MIN_BENCHMARK_FIELD_AREA_HA
     )
     sample_labels = candidates[:BENCHMARK_FIELDS_PER_CROP]
 

@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import tifffile
 from PIL import Image, ImageDraw
 
+import crop_mapping
+
 try:
     import fetch_sat
     CDSE_MODULE_AVAILABLE = True
@@ -161,9 +163,13 @@ def _crop_benchmark_series(crop_name, benchmark_year, exclude_label=None):
     all_fields, all_crops = _all_eurocrops_fields_and_crops()
     all_areas = {**eurocrops_fields.load_eurocrops_field_areas(country_code="SI"),
                  **eurocrops_fields.load_eurocrops_field_areas(country_code="SK")}
+    # Match by canonical crop, not the raw string, so e.g. Slovak "Pšenica
+    # letná ozimná" and Slovenian "pšenica (ozimna)" (both winter wheat)
+    # pool together instead of two disjoint, thinner benchmarks.
+    target_canonical = crop_mapping.canonical_crop(crop_name)
     candidates = sorted(
         label for label, crop in all_crops.items()
-        if crop == crop_name and label != exclude_label
+        if crop_mapping.canonical_crop(crop) == target_canonical and label != exclude_label
         and all_areas.get(label, 0) >= MIN_BENCHMARK_FIELD_AREA_HA
     )
     sample_labels = candidates[:BENCHMARK_FIELDS_PER_CROP]
@@ -240,9 +246,14 @@ def _best_alternative_crop(monthly_ndvi, declared_crop, year):
     """
     if not CROP_BENCHMARKS_STORE_AVAILABLE:
         return None, None
+    declared_canonical = crop_mapping.canonical_crop(declared_crop)
     best_crop, best_score = None, None
     for candidate_crop in crop_benchmarks.list_crops(year):
         if candidate_crop == declared_crop:
+            continue
+        # Skip the same real-world crop under its other-language name (e.g.
+        # Slovak vs Slovenian wheat) — that's not a misdeclaration signal.
+        if crop_mapping.canonical_crop(candidate_crop) == declared_canonical:
             continue
         candidate_benchmark, candidate_std, _fields = crop_benchmarks.load_benchmark(candidate_crop, year)
         if candidate_benchmark is None:
