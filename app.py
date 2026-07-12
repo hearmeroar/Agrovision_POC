@@ -365,28 +365,37 @@ else:
         with chart_col:
             if available or benchmark_available:
                 fig_ndvi, ax_ndvi = plt.subplots(figsize=(4.5, 1.8))
+                # Plot months as numeric positions (1-12) with fixed calendar tick
+                # labels, not month-abbreviation strings as the x-data directly:
+                # matplotlib's categorical axis places string categories in
+                # first-appearance order across *all* plotted series, so a month
+                # missing from one series but present in another (e.g. no cloud
+                # -free benchmark data for Jan) gets appended out of order instead
+                # of sorted calendrically — producing a stray line jumping across
+                # the whole chart to a misplaced point.
                 if benchmark_available:
                     bench_order = sorted(benchmark_available)
                     bench_values = np.array([benchmark_available[m] for m in bench_order])
                     bench_stds = np.array([benchmark_std.get(m) or 0.0 for m in bench_order])
-                    bench_labels = [calendar.month_abbr[m] for m in bench_order]
                     ax_ndvi.fill_between(
-                        bench_labels, bench_values - bench_stds, bench_values + bench_stds,
+                        bench_order, bench_values - bench_stds, bench_values + bench_stds,
                         color="#888888", alpha=0.2, linewidth=0, label="±1 std (acceptable range)",
                     )
                     ax_ndvi.plot(
-                        bench_labels, bench_values,
+                        bench_order, bench_values,
                         color="#888888", linewidth=1.5, linestyle="--",
                         label=f"benchmark {benchmark_year}",
                     )
                 if available:
                     month_order = sorted(available)
                     ax_ndvi.plot(
-                        [calendar.month_abbr[m] for m in month_order],
-                        [available[m] for m in month_order],
+                        month_order, [available[m] for m in month_order],
                         marker="o", color="#1E5631", linewidth=2, markersize=4,
                         label=f"{live_year}",
                     )
+                ax_ndvi.set_xlim(0.5, 12.5)
+                ax_ndvi.set_xticks(range(1, 13))
+                ax_ndvi.set_xticklabels([calendar.month_abbr[m] for m in range(1, 13)])
                 ax_ndvi.set_ylim(-0.1, 1.0)
                 ax_ndvi.tick_params(labelsize=7)
                 ax_ndvi.grid(True, linestyle="--", alpha=0.3)
