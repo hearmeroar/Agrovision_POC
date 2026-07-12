@@ -387,8 +387,8 @@ else:
         FIELD_SOURCE_OPTIONS = [
             "EuroCrops (Slovenia, official)",
             "EuroCrops (Slovakia, official)",
-            "OpenStreetMap",
-            "Fields of the World (ML)",
+            # "OpenStreetMap",
+            # "Fields of the World (ML)",
         ]
         field_sources = st.multiselect(
             "Field boundary source(s):",
@@ -413,17 +413,17 @@ else:
             except Exception as exc:
                 st.caption(f"⚠️ EuroCrops (Slovakia) fields unavailable: {exc}")
 
-        if OSM_MODULE_AVAILABLE and "OpenStreetMap" in field_sources:
-            try:
-                FIELDS.update(_cached_osm_fields((19.90, 19.96, 45.26, 45.30)))
-            except Exception as exc:
-                st.caption(f"⚠️ OSM fields unavailable: {exc}")
-
-        if FTW_MODULE_AVAILABLE and "Fields of the World (ML)" in field_sources:
-            try:
-                FIELDS.update(_cached_ftw_fields())
-            except Exception as exc:
-                st.caption(f"⚠️ FTW fields unavailable: {exc}")
+        # if OSM_MODULE_AVAILABLE and "OpenStreetMap" in field_sources:
+        #     try:
+        #         FIELDS.update(_cached_osm_fields((19.90, 19.96, 45.26, 45.30)))
+        #     except Exception as exc:
+        #         st.caption(f"⚠️ OSM fields unavailable: {exc}")
+        #
+        # if FTW_MODULE_AVAILABLE and "Fields of the World (ML)" in field_sources:
+        #     try:
+        #         FIELDS.update(_cached_ftw_fields())
+        #     except Exception as exc:
+        #         st.caption(f"⚠️ FTW fields unavailable: {exc}")
 
         field_name = st.selectbox("Field:", list(FIELDS.keys()))
         parcel_4112_polygon = FIELDS[field_name]
