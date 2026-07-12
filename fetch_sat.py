@@ -568,49 +568,52 @@ PRODUCTS = [
         "evalscript": TRUE_COLOR_EVALSCRIPT, "cloud_filter": True, "sar": False, "legend": "none",
     },
     {
-        "key": "false_color", "label": "False Color Infrared", "data_type": "sentinel-2-l2a",
-        "evalscript": FALSE_COLOR_EVALSCRIPT, "cloud_filter": True, "sar": False, "legend": "none",
-    },
-    {
-        "key": "ndmi", "label": "NDMI (moisture)", "data_type": "sentinel-2-l2a",
-        "evalscript": NDMI_EVALSCRIPT, "cloud_filter": True, "sar": False,
-        "legend": "ramp", "ramp": MOISTURE_COLOR_RAMP, "ramp_ticks": [-1, -0.3, 0, 0.3, 1],
-    },
-    {
-        "key": "ndwi", "label": "NDWI (water)", "data_type": "sentinel-2-l2a",
-        "evalscript": NDWI_EVALSCRIPT, "cloud_filter": True, "sar": False,
-        "legend": "ramp", "ramp": MOISTURE_COLOR_RAMP, "ramp_ticks": [-1, -0.3, 0, 0.3, 1],
-    },
-    {
-        "key": "ndre", "label": "NDRE (red edge)", "data_type": "sentinel-2-l2a",
-        "evalscript": NDRE_EVALSCRIPT, "cloud_filter": True, "sar": False,
-        "legend": "ramp", "ramp": NDVI_COLOR_RAMP, "ramp_ticks": [-1, -0.5, 0, 0.3, 0.6, 1],
-    },
-    {
-        "key": "evi", "label": "EVI", "data_type": "sentinel-2-l2a",
-        "evalscript": EVI_EVALSCRIPT, "cloud_filter": True, "sar": False,
-        "legend": "ramp", "ramp": NDVI_COLOR_RAMP, "ramp_ticks": [-1, -0.5, 0, 0.3, 0.6, 1],
-    },
-    {
-        "key": "savi", "label": "SAVI", "data_type": "sentinel-2-l2a",
-        "evalscript": SAVI_EVALSCRIPT, "cloud_filter": True, "sar": False,
-        "legend": "ramp", "ramp": NDVI_COLOR_RAMP, "ramp_ticks": [-1, -0.5, 0, 0.3, 0.6, 1],
-    },
-    {
         "key": "scl", "label": "Scene Classification (SCL)", "data_type": "sentinel-2-l2a",
         "evalscript": SCL_EVALSCRIPT, "cloud_filter": True, "sar": False, "legend": "categorical",
     },
-    {
-        "key": "vv", "label": "Sentinel-1 VV", "data_type": "sentinel-1-grd",
-        "evalscript": VV_GRAYSCALE_EVALSCRIPT, "cloud_filter": False, "sar": True, "legend": "none",
-    },
-    {
-        "key": "vh", "label": "Sentinel-1 VH", "data_type": "sentinel-1-grd",
-        "evalscript": VH_GRAYSCALE_EVALSCRIPT, "cloud_filter": False, "sar": True, "legend": "none",
-    },
-    {
-        "key": "rvi", "label": "Sentinel-1 RVI (radar vegetation)", "data_type": "sentinel-1-grd",
-        "evalscript": RVI_EVALSCRIPT, "cloud_filter": False, "sar": True,
-        "legend": "ramp", "ramp": NDVI_COLOR_RAMP, "ramp_ticks": [-1, -0.5, 0, 0.3, 0.6, 1],
-    },
+    # Kept for later, not shown by default — don't feed any current computation
+    # (NDVI drives the monthly chart/benchmark/verdict, True Color + SCL give
+    # visual/cloud context; these are just extra vegetation-index/SAR variants).
+    # {
+    #     "key": "false_color", "label": "False Color Infrared", "data_type": "sentinel-2-l2a",
+    #     "evalscript": FALSE_COLOR_EVALSCRIPT, "cloud_filter": True, "sar": False, "legend": "none",
+    # },
+    # {
+    #     "key": "ndmi", "label": "NDMI (moisture)", "data_type": "sentinel-2-l2a",
+    #     "evalscript": NDMI_EVALSCRIPT, "cloud_filter": True, "sar": False,
+    #     "legend": "ramp", "ramp": MOISTURE_COLOR_RAMP, "ramp_ticks": [-1, -0.3, 0, 0.3, 1],
+    # },
+    # {
+    #     "key": "ndwi", "label": "NDWI (water)", "data_type": "sentinel-2-l2a",
+    #     "evalscript": NDWI_EVALSCRIPT, "cloud_filter": True, "sar": False,
+    #     "legend": "ramp", "ramp": MOISTURE_COLOR_RAMP, "ramp_ticks": [-1, -0.3, 0, 0.3, 1],
+    # },
+    # {
+    #     "key": "ndre", "label": "NDRE (red edge)", "data_type": "sentinel-2-l2a",
+    #     "evalscript": NDRE_EVALSCRIPT, "cloud_filter": True, "sar": False,
+    #     "legend": "ramp", "ramp": NDVI_COLOR_RAMP, "ramp_ticks": [-1, -0.5, 0, 0.3, 0.6, 1],
+    # },
+    # {
+    #     "key": "evi", "label": "EVI", "data_type": "sentinel-2-l2a",
+    #     "evalscript": EVI_EVALSCRIPT, "cloud_filter": True, "sar": False,
+    #     "legend": "ramp", "ramp": NDVI_COLOR_RAMP, "ramp_ticks": [-1, -0.5, 0, 0.3, 0.6, 1],
+    # },
+    # {
+    #     "key": "savi", "label": "SAVI", "data_type": "sentinel-2-l2a",
+    #     "evalscript": SAVI_EVALSCRIPT, "cloud_filter": True, "sar": False,
+    #     "legend": "ramp", "ramp": NDVI_COLOR_RAMP, "ramp_ticks": [-1, -0.5, 0, 0.3, 0.6, 1],
+    # },
+    # {
+    #     "key": "vv", "label": "Sentinel-1 VV", "data_type": "sentinel-1-grd",
+    #     "evalscript": VV_GRAYSCALE_EVALSCRIPT, "cloud_filter": False, "sar": True, "legend": "none",
+    # },
+    # {
+    #     "key": "vh", "label": "Sentinel-1 VH", "data_type": "sentinel-1-grd",
+    #     "evalscript": VH_GRAYSCALE_EVALSCRIPT, "cloud_filter": False, "sar": True, "legend": "none",
+    # },
+    # {
+    #     "key": "rvi", "label": "Sentinel-1 RVI (radar vegetation)", "data_type": "sentinel-1-grd",
+    #     "evalscript": RVI_EVALSCRIPT, "cloud_filter": False, "sar": True,
+    #     "legend": "ramp", "ramp": NDVI_COLOR_RAMP, "ramp_ticks": [-1, -0.5, 0, 0.3, 0.6, 1],
+    # },
 ]
