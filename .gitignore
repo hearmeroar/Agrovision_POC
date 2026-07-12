@@ -1,0 +1,12 @@
+.streamlit/secrets.toml
+__pycache__/
+*.pyc
+.venv/
+.claude/
+.agents/
+
+# Reference-only bulk sample data, not read by the running app (app.py only
+# reads the small sample_fields_*.geojson files). Too large for GitHub anyway
+# (the .geojson is ~268MB, over GitHub's 100MB hard limit).
+ftw_fields_N45E019_2024.parquet
+ftw_fields_N45E019_2024.geojson
