@@ -51,12 +51,35 @@ def _cached_ftw_fields():
 
 @st.cache_data(show_spinner="Loading official EuroCrops (Slovenia) field boundaries...")
 def _cached_eurocrops_fields():
-    return eurocrops_fields.load_eurocrops_fields()
+    return eurocrops_fields.load_eurocrops_fields(country_code="SI")
 
 
 @st.cache_data(show_spinner="Loading EuroCrops crop types...")
 def _cached_eurocrops_crops():
-    return eurocrops_fields.load_eurocrops_field_crops()
+    return eurocrops_fields.load_eurocrops_field_crops(country_code="SI")
+
+
+@st.cache_data(show_spinner="Loading official EuroCrops (Slovakia) field boundaries...")
+def _cached_eurocrops_fields_sk():
+    return eurocrops_fields.load_eurocrops_fields(country_code="SK")
+
+
+@st.cache_data(show_spinner="Loading EuroCrops crop types...")
+def _cached_eurocrops_crops_sk():
+    return eurocrops_fields.load_eurocrops_field_crops(country_code="SK")
+
+
+@st.cache_data
+def _all_eurocrops_fields_and_crops():
+    """Merged SI+SK pools used by the crop-benchmark engine to find candidate
+    fields — crop names differ by country/language so they naturally don't
+    collide, this just lets a Slovak field's benchmark be built from other
+    Slovak fields (and a Slovenian field's from other Slovenian fields)."""
+    fields = {**eurocrops_fields.load_eurocrops_fields(country_code="SI"),
+              **eurocrops_fields.load_eurocrops_fields(country_code="SK")}
+    crops = {**eurocrops_fields.load_eurocrops_field_crops(country_code="SI"),
+             **eurocrops_fields.load_eurocrops_field_crops(country_code="SK")}
+    return fields, crops
 
 
 def _project_polygon_to_pixels(polygon_coords, bbox, size):
@@ -135,9 +158,9 @@ def _crop_benchmark_series(crop_name, benchmark_year, exclude_label=None):
         if cached_mean is not None and exclude_label not in cached_fields:
             return cached_mean, cached_std, cached_fields
 
-    all_fields = eurocrops_fields.load_eurocrops_fields()
-    all_crops = eurocrops_fields.load_eurocrops_field_crops()
-    all_areas = eurocrops_fields.load_eurocrops_field_areas()
+    all_fields, all_crops = _all_eurocrops_fields_and_crops()
+    all_areas = {**eurocrops_fields.load_eurocrops_field_areas(country_code="SI"),
+                 **eurocrops_fields.load_eurocrops_field_areas(country_code="SK")}
     candidates = sorted(
         label for label, crop in all_crops.items()
         if crop == crop_name and label != exclude_label
@@ -325,7 +348,12 @@ else:
             # ],
         }
 
-        FIELD_SOURCE_OPTIONS = ["EuroCrops (Slovenia, official)", "OpenStreetMap", "Fields of the World (ML)"]
+        FIELD_SOURCE_OPTIONS = [
+            "EuroCrops (Slovenia, official)",
+            "EuroCrops (Slovakia, official)",
+            "OpenStreetMap",
+            "Fields of the World (ML)",
+        ]
         field_sources = st.multiselect(
             "Field boundary source(s):",
             FIELD_SOURCE_OPTIONS,
@@ -341,6 +369,13 @@ else:
                 FIELD_CROPS.update(_cached_eurocrops_crops())
             except Exception as exc:
                 st.caption(f"⚠️ EuroCrops fields unavailable: {exc}")
+
+        if EUROCROPS_MODULE_AVAILABLE and "EuroCrops (Slovakia, official)" in field_sources:
+            try:
+                FIELDS.update(_cached_eurocrops_fields_sk())
+                FIELD_CROPS.update(_cached_eurocrops_crops_sk())
+            except Exception as exc:
+                st.caption(f"⚠️ EuroCrops (Slovakia) fields unavailable: {exc}")
 
         if OSM_MODULE_AVAILABLE and "OpenStreetMap" in field_sources:
             try:

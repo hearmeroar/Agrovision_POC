@@ -725,5 +725,140 @@
       },
       "methodology": "Mean and standard deviation of per-field NDVI (CDSE Sentinel Hub Process API, Sentinel-2 L2A, NDVI_EVALSCRIPT with sampleType FLOAT32) masked to each field's own polygon (not just its padded bounding box) and cloud/no-data pixels (dataMask), computed per month across the listed source fields. The std is used to draw a +/-1 std 'acceptable range' band around the benchmark line. Source fields are official EuroCrops-declared parcels of the same crop, excluding whichever field the app was evaluating at compute time."
     }
+  },
+  "Jačmeň jarný": {
+    "2023": {
+      "source_fields": [
+        "EuroCrops SK #129: Jačmeň jarný (0.61 ha)",
+        "EuroCrops SK #143: Jačmeň jarný (13.36 ha)",
+        "EuroCrops SK #19: Jačmeň jarný (0.63 ha)",
+        "EuroCrops SK #203: Jačmeň jarný (0.59 ha)",
+        "EuroCrops SK #20: Jačmeň jarný (6.72 ha)",
+        "EuroCrops SK #224: Jačmeň jarný (2.23 ha)",
+        "EuroCrops SK #236: Jačmeň jarný (1.07 ha)",
+        "EuroCrops SK #24: Jačmeň jarný (9.60 ha)",
+        "EuroCrops SK #283: Jačmeň jarný (0.58 ha)",
+        "EuroCrops SK #285: Jačmeň jarný (9.40 ha)"
+      ],
+      "monthly_ndvi": {
+        "1": 0.38147690147161484,
+        "2": null,
+        "3": 0.21383142471313477,
+        "4": 0.5545202523469925,
+        "5": 0.36088262498378754,
+        "6": 0.46903192102909086,
+        "7": 0.2945187114179134,
+        "8": 0.4321597993373871,
+        "9": 0.3980375200510025,
+        "10": 0.35812502056360246,
+        "11": null,
+        "12": 0.15997081771492958
+      },
+      "monthly_ndvi_std": {
+        "1": 0.1408513748487292,
+        "2": null,
+        "3": 0.0,
+        "4": 0.15695391517464544,
+        "5": 0.06946391213252667,
+        "6": 0.15734136039409488,
+        "7": 0.1792371711921659,
+        "8": 0.1517744324349086,
+        "9": 0.12529719281378346,
+        "10": 0.1523880800658549,
+        "11": null,
+        "12": 0.16073161861251412
+      },
+      "methodology": "Benchmark year is fixed to 2023 (the EuroCrops sample's declaration year — the one year the declared crop is actually known to be correct; a later year risks the field having rotated to a different crop since declaration). For each crop, up to BENCHMARK_FIELDS_PER_CROP other EuroCrops-declared fields of that crop are used, excluding fields smaller than MIN_BENCHMARK_FIELD_AREA_HA (too few clean 10m Sentinel-2 pixels post-masking to trust) and excluding whichever field the app was evaluating at compute time. Per field: real NDVI (CDSE Sentinel Hub Process API, Sentinel-2 L2A, NDVI_EVALSCRIPT with sampleType FLOAT32) masked to both cloud/no-data pixels (dataMask) and the field's own polygon (not just its padded bounding box). Mean and standard deviation are then taken per month across the field pool; the std drives the +/-1 std 'acceptable range' band drawn around the benchmark line."
+    }
+  },
+  "Kukurica": {
+    "2023": {
+      "source_fields": [
+        "EuroCrops SK #100: Kukurica (0.85 ha)",
+        "EuroCrops SK #101: Kukurica (28.21 ha)",
+        "EuroCrops SK #103: Kukurica (0.77 ha)",
+        "EuroCrops SK #105: Kukurica (5.50 ha)",
+        "EuroCrops SK #106: Kukurica (4.79 ha)",
+        "EuroCrops SK #107: Kukurica (5.91 ha)",
+        "EuroCrops SK #108: Kukurica (7.56 ha)",
+        "EuroCrops SK #109: Kukurica (3.75 ha)",
+        "EuroCrops SK #110: Kukurica (12.77 ha)",
+        "EuroCrops SK #111: Kukurica (11.59 ha)"
+      ],
+      "monthly_ndvi": {
+        "1": 0.33992822021245955,
+        "2": null,
+        "3": 0.17110149065653482,
+        "4": 0.3031094267964363,
+        "5": 0.29553179144859315,
+        "6": 0.6643709629774094,
+        "7": 0.6993991285562515,
+        "8": 0.7668864786624908,
+        "9": 0.3970767825841904,
+        "10": 0.3194646805524826,
+        "11": null,
+        "12": 0.10034949705004692
+      },
+      "monthly_ndvi_std": {
+        "1": 0.1689337994486422,
+        "2": null,
+        "3": 0.06230063164831527,
+        "4": 0.19358061317734443,
+        "5": 0.024678246365068043,
+        "6": 0.1595217852336232,
+        "7": 0.14489013403091003,
+        "8": 0.059482436422307786,
+        "9": 0.05801072673675873,
+        "10": 0.041359317920085334,
+        "11": null,
+        "12": 0.06797960345807735
+      },
+      "methodology": "Benchmark year is fixed to 2023 (the EuroCrops sample's declaration year — the one year the declared crop is actually known to be correct; a later year risks the field having rotated to a different crop since declaration). For each crop, up to BENCHMARK_FIELDS_PER_CROP other EuroCrops-declared fields of that crop are used, excluding fields smaller than MIN_BENCHMARK_FIELD_AREA_HA (too few clean 10m Sentinel-2 pixels post-masking to trust) and excluding whichever field the app was evaluating at compute time. Per field: real NDVI (CDSE Sentinel Hub Process API, Sentinel-2 L2A, NDVI_EVALSCRIPT with sampleType FLOAT32) masked to both cloud/no-data pixels (dataMask) and the field's own polygon (not just its padded bounding box). Mean and standard deviation are then taken per month across the field pool; the std drives the +/-1 std 'acceptable range' band drawn around the benchmark line."
+    }
+  },
+  "Kapusta repková pravá - ozimná": {
+    "2023": {
+      "source_fields": [
+        "EuroCrops SK #102: Kapusta repková pravá - ozimná (17.92 ha)",
+        "EuroCrops SK #104: Kapusta repková pravá - ozimná (20.77 ha)",
+        "EuroCrops SK #14: Kapusta repková pravá - ozimná (36.96 ha)",
+        "EuroCrops SK #184: Kapusta repková pravá - ozimná (4.18 ha)",
+        "EuroCrops SK #194: Kapusta repková pravá - ozimná (4.28 ha)",
+        "EuroCrops SK #217: Kapusta repková pravá - ozimná (10.47 ha)",
+        "EuroCrops SK #244: Kapusta repková pravá - ozimná (1.44 ha)",
+        "EuroCrops SK #372: Kapusta repková pravá - ozimná (2.34 ha)",
+        "EuroCrops SK #70: Kapusta repková pravá - ozimná (7.25 ha)",
+        "EuroCrops SK #78: Kapusta repková pravá - ozimná (7.70 ha)"
+      ],
+      "monthly_ndvi": {
+        "1": 0.642607444524765,
+        "2": null,
+        "3": null,
+        "4": 0.685198849439621,
+        "5": 0.289599584043026,
+        "6": 0.41579614877700805,
+        "7": 0.19253594055771828,
+        "8": 0.39813208431005476,
+        "9": 0.3059957608580589,
+        "10": 0.31375680714845655,
+        "11": null,
+        "12": 0.09560321979224681
+      },
+      "monthly_ndvi_std": {
+        "1": 0.1180784088890236,
+        "2": null,
+        "3": null,
+        "4": 0.09318267591300583,
+        "5": 0.0807971431466693,
+        "6": 0.14251893179647307,
+        "7": 0.10602965197082322,
+        "8": 0.14566551795056412,
+        "9": 0.16245817265198667,
+        "10": 0.17710044458432134,
+        "11": null,
+        "12": 0.019767842259834214
+      },
+      "methodology": "Benchmark year is fixed to 2023 (the EuroCrops sample's declaration year — the one year the declared crop is actually known to be correct; a later year risks the field having rotated to a different crop since declaration). For each crop, up to BENCHMARK_FIELDS_PER_CROP other EuroCrops-declared fields of that crop are used, excluding fields smaller than MIN_BENCHMARK_FIELD_AREA_HA (too few clean 10m Sentinel-2 pixels post-masking to trust) and excluding whichever field the app was evaluating at compute time. Per field: real NDVI (CDSE Sentinel Hub Process API, Sentinel-2 L2A, NDVI_EVALSCRIPT with sampleType FLOAT32) masked to both cloud/no-data pixels (dataMask) and the field's own polygon (not just its padded bounding box). Mean and standard deviation are then taken per month across the field pool; the std drives the +/-1 std 'acceptable range' band drawn around the benchmark line."
+    }
   }
 }

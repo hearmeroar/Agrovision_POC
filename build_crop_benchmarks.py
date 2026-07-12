@@ -116,9 +116,15 @@ def build_benchmark(crop_name, all_fields, all_crops, all_areas):
 
 
 def main():
-    all_fields = eurocrops_fields.load_eurocrops_fields()
-    all_crops = eurocrops_fields.load_eurocrops_field_crops()
-    all_areas = eurocrops_fields.load_eurocrops_field_areas()
+    # SI + SK merged: crop names differ by country/language so they don't
+    # collide, this just lets each country's fields build a benchmark from
+    # other fields of the same country/crop.
+    all_fields = {**eurocrops_fields.load_eurocrops_fields(country_code="SI"),
+                  **eurocrops_fields.load_eurocrops_fields(country_code="SK")}
+    all_crops = {**eurocrops_fields.load_eurocrops_field_crops(country_code="SI"),
+                 **eurocrops_fields.load_eurocrops_field_crops(country_code="SK")}
+    all_areas = {**eurocrops_fields.load_eurocrops_field_areas(country_code="SI"),
+                 **eurocrops_fields.load_eurocrops_field_areas(country_code="SK")}
 
     eligible_crop_counts = {}
     for label, crop in all_crops.items():
