@@ -293,130 +293,131 @@ with header_placeholder:
     _render_header("Select a field below to begin live satellite monitoring")
 
 # === LIVE CDSE CONNECTION DIAGNOSTICS (isolated, does not affect mock NDVI pipeline below) ===
-st.subheader("🛰️ CDSE Live Connection Status (OAuth2)")
 if not CDSE_MODULE_AVAILABLE:
     st.warning("`fetch_sat.py` module not found or `requests` is not installed.")
 else:
-    if st.button("Test CDSE Token Exchange"):
-        try:
-            fetch_sat.get_access_token(force_refresh=True)
-            st.success("✅ Access token obtained. CDSE credentials are valid.")
-        except Exception as exc:
-            st.error(f"❌ {exc}")
+    with st.expander("🛰️ CDSE connection diagnostics", expanded=False):
+        if st.button("Test CDSE Token Exchange"):
+            try:
+                fetch_sat.get_access_token(force_refresh=True)
+                st.success("✅ Access token obtained. CDSE credentials are valid.")
+            except Exception as exc:
+                st.error(f"❌ {exc}")
 
-    FIELDS = {
-        # "Parcel #4112 (Kać)": [
-        #     [19.9248, 45.2882], [19.9348, 45.2885], [19.9352, 45.2842],
-        #     [19.9356, 45.2808], [19.9256, 45.2804], [19.9252, 45.2844],
-        #     [19.9248, 45.2882],
-        # ],
-        # "Test Field B (Kać area)": [
-        #     [19.9398, 45.2782], [19.9498, 45.2785], [19.9502, 45.2742],
-        #     [19.9506, 45.2708], [19.9406, 45.2704], [19.9402, 45.2744],
-        #     [19.9398, 45.2782],
-        # ],
-        # "Test Field C (Kać area)": [
-        #     [19.9148, 45.2682], [19.9248, 45.2685], [19.9252, 45.2642],
-        #     [19.9256, 45.2608], [19.9156, 45.2604], [19.9152, 45.2644],
-        #     [19.9148, 45.2682],
-        # ],
-    }
+    controls_col, tiles_col = st.columns([2, 3])
 
-    FIELD_SOURCE_OPTIONS = ["EuroCrops (Slovenia, official)", "OpenStreetMap", "Fields of the World (ML)"]
-    field_sources = st.multiselect(
-        "Field boundary source(s):",
-        FIELD_SOURCE_OPTIONS,
-        default=FIELD_SOURCE_OPTIONS,
-    )
+    with controls_col:
+        FIELDS = {
+            # "Parcel #4112 (Kać)": [
+            #     [19.9248, 45.2882], [19.9348, 45.2885], [19.9352, 45.2842],
+            #     [19.9356, 45.2808], [19.9256, 45.2804], [19.9252, 45.2844],
+            #     [19.9248, 45.2882],
+            # ],
+            # "Test Field B (Kać area)": [
+            #     [19.9398, 45.2782], [19.9498, 45.2785], [19.9502, 45.2742],
+            #     [19.9506, 45.2708], [19.9406, 45.2704], [19.9402, 45.2744],
+            #     [19.9398, 45.2782],
+            # ],
+            # "Test Field C (Kać area)": [
+            #     [19.9148, 45.2682], [19.9248, 45.2685], [19.9252, 45.2642],
+            #     [19.9256, 45.2608], [19.9156, 45.2604], [19.9152, 45.2644],
+            #     [19.9148, 45.2682],
+            # ],
+        }
 
-    # EuroCrops is loaded first so its fields land first in FIELDS, making one
-    # of them the selectbox's default (index 0) pick below.
-    FIELD_CROPS = {}
-    if EUROCROPS_MODULE_AVAILABLE and "EuroCrops (Slovenia, official)" in field_sources:
-        try:
-            FIELDS.update(_cached_eurocrops_fields())
-            FIELD_CROPS.update(_cached_eurocrops_crops())
-        except Exception as exc:
-            st.caption(f"⚠️ EuroCrops fields unavailable: {exc}")
-
-    if OSM_MODULE_AVAILABLE and "OpenStreetMap" in field_sources:
-        try:
-            FIELDS.update(_cached_osm_fields((19.90, 19.96, 45.26, 45.30)))
-        except Exception as exc:
-            st.caption(f"⚠️ OSM fields unavailable: {exc}")
-
-    if FTW_MODULE_AVAILABLE and "Fields of the World (ML)" in field_sources:
-        try:
-            FIELDS.update(_cached_ftw_fields())
-        except Exception as exc:
-            st.caption(f"⚠️ FTW fields unavailable: {exc}")
-
-    field_name = st.selectbox("Field:", list(FIELDS.keys()))
-    parcel_4112_polygon = FIELDS[field_name]
-    lons = [pt[0] for pt in parcel_4112_polygon]
-    lats = [pt[1] for pt in parcel_4112_polygon]
-    bbox = (min(lons), max(lons), min(lats), max(lats))
-    padded_lon_min, padded_lat_min, padded_lon_max, padded_lat_max = fetch_sat._padded_bbox(
-        parcel_4112_polygon, pad_ratio=0.5
-    )
-    padded_bbox = (padded_lon_min, padded_lon_max, padded_lat_min, padded_lat_max)
-
-    lat_center = (bbox[2] + bbox[3]) / 2
-    lon_center = (bbox[0] + bbox[1]) / 2
-    with header_placeholder:
-        _render_header(
-            f"Live Satellite Monitoring: {field_name} — {lat_center:.4f}°N, {lon_center:.4f}°E"
+        FIELD_SOURCE_OPTIONS = ["EuroCrops (Slovenia, official)", "OpenStreetMap", "Fields of the World (ML)"]
+        field_sources = st.multiselect(
+            "Field boundary source(s):",
+            FIELD_SOURCE_OPTIONS,
+            default=FIELD_SOURCE_OPTIONS,
         )
 
-    today = datetime.date.today()
-    default_month = today.month - 1
-    default_year = today.year
-    if default_month == 0:
-        default_month = 12
-        default_year -= 1
+        # EuroCrops is loaded first so its fields land first in FIELDS, making one
+        # of them the selectbox's default (index 0) pick below.
+        FIELD_CROPS = {}
+        if EUROCROPS_MODULE_AVAILABLE and "EuroCrops (Slovenia, official)" in field_sources:
+            try:
+                FIELDS.update(_cached_eurocrops_fields())
+                FIELD_CROPS.update(_cached_eurocrops_crops())
+            except Exception as exc:
+                st.caption(f"⚠️ EuroCrops fields unavailable: {exc}")
 
-    year_options = list(range(today.year, today.year - 6, -1))
+        if OSM_MODULE_AVAILABLE and "OpenStreetMap" in field_sources:
+            try:
+                FIELDS.update(_cached_osm_fields((19.90, 19.96, 45.26, 45.30)))
+            except Exception as exc:
+                st.caption(f"⚠️ OSM fields unavailable: {exc}")
 
-    year_col, month_col = st.columns([1, 2])
-    with year_col:
-        live_year = st.selectbox("Year:", year_options, index=year_options.index(default_year))
-    with month_col:
-        live_month = st.select_slider(
-            "Month for live snapshot:",
-            options=list(range(1, 13)),
-            value=default_month,
-            format_func=lambda m: calendar.month_abbr[m],
+        if FTW_MODULE_AVAILABLE and "Fields of the World (ML)" in field_sources:
+            try:
+                FIELDS.update(_cached_ftw_fields())
+            except Exception as exc:
+                st.caption(f"⚠️ FTW fields unavailable: {exc}")
+
+        field_name = st.selectbox("Field:", list(FIELDS.keys()))
+        parcel_4112_polygon = FIELDS[field_name]
+        lons = [pt[0] for pt in parcel_4112_polygon]
+        lats = [pt[1] for pt in parcel_4112_polygon]
+        bbox = (min(lons), max(lons), min(lats), max(lats))
+        padded_lon_min, padded_lat_min, padded_lon_max, padded_lat_max = fetch_sat._padded_bbox(
+            parcel_4112_polygon, pad_ratio=0.5
         )
+        padded_bbox = (padded_lon_min, padded_lon_max, padded_lat_min, padded_lat_max)
 
-    selection_key = (field_name, live_year, live_month)
-    date_from = datetime.date(live_year, live_month, 1).isoformat()
-    last_day = calendar.monthrange(live_year, live_month)[1]
-    month_end = datetime.date(live_year, live_month, last_day)
-    date_to = min(month_end, today).isoformat()
+        lat_center = (bbox[2] + bbox[3]) / 2
+        lon_center = (bbox[0] + bbox[1]) / 2
+        with header_placeholder:
+            _render_header(
+                f"Live Satellite Monitoring: {field_name} — {lat_center:.4f}°N, {lon_center:.4f}°E"
+            )
 
-    if field_name in FIELD_CROPS:
-        crop_name = FIELD_CROPS[field_name]
-        monthly_ndvi = _monthly_ndvi_series(parcel_4112_polygon, padded_bbox, live_year)
-        available = {m: v for m, v in monthly_ndvi.items() if v is not None}
+        today = datetime.date.today()
+        default_month = today.month - 1
+        default_year = today.year
+        if default_month == 0:
+            default_month = 12
+            default_year -= 1
 
-        # Fixed to the EuroCrops declaration year (2023), not "last full year":
-        # that's the one year we actually know the declared crop was correct.
-        # Using a later year risks the field having rotated to a different
-        # crop since the declaration, contaminating the benchmark itself.
-        benchmark_year = CROP_DECLARATION_YEAR
-        benchmark, benchmark_std, benchmark_fields = _crop_benchmark_series(
-            crop_name, benchmark_year, exclude_label=field_name
-        )
-        benchmark_available = {m: v for m, v in benchmark.items() if v is not None}
-        correlation, common_months = _curve_correlation(monthly_ndvi, benchmark)
-        match_score, band_coverage = _crop_match_score(
-            monthly_ndvi, benchmark, benchmark_std, correlation, common_months
-        )
+        year_options = list(range(today.year, today.year - 6, -1))
 
-        chart_col, caption_col = st.columns([1, 2])
-        with chart_col:
+        year_col, month_col = st.columns([1, 1])
+        with year_col:
+            live_year = st.selectbox("Year:", year_options, index=year_options.index(default_year))
+        with month_col:
+            live_month = st.selectbox(
+                "Month:", list(range(1, 13)), index=default_month - 1,
+                format_func=lambda m: calendar.month_abbr[m],
+            )
+
+        selection_key = (field_name, live_year, live_month)
+        date_from = datetime.date(live_year, live_month, 1).isoformat()
+        last_day = calendar.monthrange(live_year, live_month)[1]
+        month_end = datetime.date(live_year, live_month, last_day)
+        date_to = min(month_end, today).isoformat()
+
+        if field_name in FIELD_CROPS:
+            crop_name = FIELD_CROPS[field_name]
+            monthly_ndvi = _monthly_ndvi_series(parcel_4112_polygon, padded_bbox, live_year)
+            available = {m: v for m, v in monthly_ndvi.items() if v is not None}
+
+            # Fixed to the EuroCrops declaration year (2023), not "last full year":
+            # that's the one year we actually know the declared crop was correct.
+            # Using a later year risks the field having rotated to a different
+            # crop since the declaration, contaminating the benchmark itself.
+            benchmark_year = CROP_DECLARATION_YEAR
+            benchmark, benchmark_std, benchmark_fields = _crop_benchmark_series(
+                crop_name, benchmark_year, exclude_label=field_name
+            )
+            benchmark_available = {m: v for m, v in benchmark.items() if v is not None}
+            correlation, common_months = _curve_correlation(monthly_ndvi, benchmark)
+            match_score, band_coverage = _crop_match_score(
+                monthly_ndvi, benchmark, benchmark_std, correlation, common_months
+            )
+
+            st.markdown(f"**📈 Monthly NDVI — {crop_name}, {live_year}**")
+
             if available or benchmark_available:
-                fig_ndvi, ax_ndvi = plt.subplots(figsize=(4.5, 1.8))
+                fig_ndvi, ax_ndvi = plt.subplots(figsize=(3.6, 1.5))
                 # Plot months as numeric positions (1-12) with fixed calendar tick
                 # labels, not month-abbreviation strings as the x-data directly:
                 # matplotlib's categorical axis places string categories in
@@ -431,7 +432,7 @@ else:
                     bench_stds = np.array([benchmark_std.get(m) or 0.0 for m in bench_order])
                     ax_ndvi.fill_between(
                         bench_order, bench_values - bench_stds, bench_values + bench_stds,
-                        color="#888888", alpha=0.2, linewidth=0, label="±1 std (acceptable range)",
+                        color="#888888", alpha=0.2, linewidth=0, label="±1 std",
                     )
                     ax_ndvi.plot(
                         bench_order, bench_values,
@@ -442,57 +443,54 @@ else:
                     month_order = sorted(available)
                     ax_ndvi.plot(
                         month_order, [available[m] for m in month_order],
-                        marker="o", color="#1E5631", linewidth=2, markersize=4,
+                        marker="o", color="#1E5631", linewidth=2, markersize=3,
                         label=f"{live_year}",
                     )
                 ax_ndvi.set_xlim(0.5, 12.5)
                 ax_ndvi.set_xticks(range(1, 13))
-                ax_ndvi.set_xticklabels([calendar.month_abbr[m] for m in range(1, 13)])
+                ax_ndvi.set_xticklabels([calendar.month_abbr[m][0] for m in range(1, 13)])
                 ax_ndvi.set_ylim(-0.1, 1.0)
-                ax_ndvi.tick_params(labelsize=7)
+                ax_ndvi.tick_params(labelsize=6)
                 ax_ndvi.grid(True, linestyle="--", alpha=0.3)
-                ax_ndvi.legend(fontsize=6, loc="lower right")
+                ax_ndvi.legend(fontsize=5, loc="lower right")
                 fig_ndvi.tight_layout(pad=0.3)
-                st.pyplot(fig_ndvi, use_container_width=False)
+                st.pyplot(fig_ndvi, use_container_width=True)
             else:
                 st.caption("No cloud-free NDVI data available yet for this year.")
-        with caption_col:
-            st.markdown(f"**📈 Monthly NDVI — {crop_name}, {live_year}**")
 
             if match_score is None:
                 st.info("ℹ️ Not enough overlapping cloud-free months yet to verify this year against the benchmark.")
             elif match_score >= 75:
-                st.success(f"✅ {match_score:.0f}% match with declared crop \"{crop_name}\" (shape corr. {correlation:.2f}, {band_coverage:.0%} of months within range).")
+                st.success(f"✅ {match_score:.0f}% match with declared crop \"{crop_name}\".")
             elif match_score >= 40:
-                st.warning(f"⚠️ {match_score:.0f}% match with declared crop \"{crop_name}\" — worth a closer look (shape corr. {correlation:.2f}, {band_coverage:.0%} within range).")
+                st.warning(f"⚠️ {match_score:.0f}% match with declared crop \"{crop_name}\" — worth a closer look.")
             else:
-                st.error(f"❌ {match_score:.0f}% match with declared crop \"{crop_name}\" — possible misdeclaration or field anomaly (shape corr. {correlation:.2f}, {band_coverage:.0%} within range).")
+                st.error(f"❌ {match_score:.0f}% match with declared crop \"{crop_name}\" — possible misdeclaration.")
 
             if match_score is not None and match_score < 75:
                 alt_crop, alt_score = _best_alternative_crop(monthly_ndvi, crop_name, benchmark_year)
                 if alt_crop is not None and alt_score > match_score:
-                    st.warning(f"🔎 Curve fits \"{alt_crop}\" better ({alt_score:.0f}% match) — could actually be growing that instead.")
+                    st.warning(f"🔎 Fits \"{alt_crop}\" better ({alt_score:.0f}%).")
 
-            st.caption(
-                "Score = heuristic blend of curve-shape correlation and how often this "
-                "field falls within the benchmark's own ±1 std range — not a calibrated "
-                "statistical probability (no labeled wrong-declaration examples exist to "
-                "calibrate against)."
-            )
-
-            st.caption(
-                f"Solid = this field, real Sentinel-2 masked to its own polygon. Dashed + shaded band = "
-                f"benchmark mean ±1 std, from {len(benchmark_fields)} other fields declared as "
-                f"\"{crop_name}\" ({benchmark_year}, same methodology)."
-            )
-            st.caption(
-                f"⚠️ Crop is per the EuroCrops {CROP_DECLARATION_YEAR} declaration (the last one in "
-                f"this sample) — it may have since rotated to a different crop for {live_year}."
-            )
-            skipped = sorted(set(monthly_ndvi) - set(available))
-            if skipped:
-                st.caption(f"No cloud-free data for: {', '.join(calendar.month_abbr[m] for m in skipped)}.")
-        st.markdown("---")
+            with st.expander("Methodology / caveats"):
+                st.caption(
+                    "Score = heuristic blend of curve-shape correlation and how often this "
+                    "field falls within the benchmark's own ±1 std range — not a calibrated "
+                    "statistical probability (no labeled wrong-declaration examples exist to "
+                    "calibrate against)."
+                )
+                st.caption(
+                    f"Solid = this field, real Sentinel-2 masked to its own polygon. Dashed + shaded band = "
+                    f"benchmark mean ±1 std, from {len(benchmark_fields)} other fields declared as "
+                    f"\"{crop_name}\" ({benchmark_year}, same methodology)."
+                )
+                st.caption(
+                    f"⚠️ Crop is per the EuroCrops {CROP_DECLARATION_YEAR} declaration (the last one in "
+                    f"this sample) — it may have since rotated to a different crop for {live_year}."
+                )
+                skipped = sorted(set(monthly_ndvi) - set(available))
+                if skipped:
+                    st.caption(f"No cloud-free data for: {', '.join(calendar.month_abbr[m] for m in skipped)}.")
 
     def draw_field_boundary(png_bytes, polygon_coords, image_bbox):
         """Overlays the field's vector polygon on a fetched product PNG.
@@ -559,49 +557,45 @@ else:
         render_coords_and_caption(result)
         render_legend(product)
 
-    st.caption(
-        f"Showing all {len(fetch_sat.PRODUCTS)} available products — each panel is a separate "
-        "Sentinel Hub request, so switching month/year/field re-fetches all of them."
-    )
-
-    COLS_PER_ROW = 4
-    products = fetch_sat.PRODUCTS
-    for row_start in range(0, len(products), COLS_PER_ROW):
-        row_products = products[row_start:row_start + COLS_PER_ROW]
-        row_cols = st.columns(COLS_PER_ROW)
-        for col, product in zip(row_cols, row_products):
-            with col:
-                st.markdown(f"**{product['label']}**")
-                result_key = f"live_prod_{product['key']}_result"
-                cache_key = f"live_prod_{product['key']}_key"
-                with st.container(key=f"live_prod_{product['key']}_box", border=False):
-                    placeholder = st.empty()
-                    with placeholder.container():
-                        render_product_result(product, st.session_state.get(result_key))
-
-                    if st.session_state.get(cache_key) != selection_key:
-                        with st.spinner(f"Fetching {product['label']}..."):
-                            try:
-                                png_bytes = fetch_sat.fetch_visual_png(
-                                    parcel_4112_polygon, date_from, date_to,
-                                    product["data_type"], product["evalscript"],
-                                    cloud_filter=product["cloud_filter"], sar=product["sar"],
-                                )
-                                overlaid_image = draw_field_boundary(
-                                    png_bytes, parcel_4112_polygon, padded_bbox
-                                )
-                                new_result = {
-                                    "image": overlaid_image,
-                                    "caption": f"{product['label']}: {field_name}, {date_from} → {date_to}",
-                                    "bbox": bbox,
-                                    "error": None,
-                                }
-                            except Exception as exc:
-                                new_result = {"image": None, "caption": None, "bbox": None, "error": str(exc)}
-                        st.session_state[result_key] = new_result
-                        st.session_state[cache_key] = selection_key
+    with tiles_col:
+        COLS_PER_ROW = 3
+        products = fetch_sat.PRODUCTS
+        for row_start in range(0, len(products), COLS_PER_ROW):
+            row_products = products[row_start:row_start + COLS_PER_ROW]
+            row_cols = st.columns(COLS_PER_ROW)
+            for col, product in zip(row_cols, row_products):
+                with col:
+                    st.markdown(f"**{product['label']}**")
+                    result_key = f"live_prod_{product['key']}_result"
+                    cache_key = f"live_prod_{product['key']}_key"
+                    with st.container(key=f"live_prod_{product['key']}_box", border=False):
+                        placeholder = st.empty()
                         with placeholder.container():
-                            render_product_result(product, new_result)
+                            render_product_result(product, st.session_state.get(result_key))
+
+                        if st.session_state.get(cache_key) != selection_key:
+                            with st.spinner(f"Fetching {product['label']}..."):
+                                try:
+                                    png_bytes = fetch_sat.fetch_visual_png(
+                                        parcel_4112_polygon, date_from, date_to,
+                                        product["data_type"], product["evalscript"],
+                                        cloud_filter=product["cloud_filter"], sar=product["sar"],
+                                    )
+                                    overlaid_image = draw_field_boundary(
+                                        png_bytes, parcel_4112_polygon, padded_bbox
+                                    )
+                                    new_result = {
+                                        "image": overlaid_image,
+                                        "caption": f"{product['label']}: {field_name}, {date_from} → {date_to}",
+                                        "bbox": bbox,
+                                        "error": None,
+                                    }
+                                except Exception as exc:
+                                    new_result = {"image": None, "caption": None, "bbox": None, "error": str(exc)}
+                            st.session_state[result_key] = new_result
+                            st.session_state[cache_key] = selection_key
+                            with placeholder.container():
+                                render_product_result(product, new_result)
 
 # === Everything below is mocked demo data (hardcoded "historical" NDVI,
 # a random-noise raster standing in for imagery, a fixed old Parcel #4112
