@@ -297,7 +297,7 @@ except ImportError:
     VOICE_INPUT_AVAILABLE = False
 
 # Page configuration (wide layout for split view)
-st.set_page_config(layout="wide", page_title="eAgrar AI Dashboard")
+st.set_page_config(layout="wide", page_title="HDVI Signature Identification")
 
 # Force left text alignment everywhere (overrides Streamlit's default centered
 # image captions and any inherited center/justify alignment).
@@ -333,10 +333,10 @@ st.markdown(
 def _render_header(subtitle):
     st.markdown(
         f"""
-        <div style="display: flex; align-items: center; justify-content: space-between; background-color: #1a1a1a; padding: 10px 20px; border-radius: 8px; margin-bottom: 20px;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;">
             <div style="display: flex; align-items: center; gap: 15px;">
                 <span style="font-size: 28px;">🛰️</span>
-                <span style="font-size: 22px; font-weight: bold; color: white; letter-spacing: 0.5px;">eAgrar AI-Verification System</span>
+                <span style="font-size: 22px; font-weight: bold; letter-spacing: 0.5px;">HDVI Signature Identification</span>
             </div>
             <div style="font-size: 14px; color: #888888; font-weight: 500;">
                 {subtitle}
@@ -485,7 +485,8 @@ else:
                 monthly_ndvi, benchmark, benchmark_std, correlation, common_months
             )
 
-            st.markdown(f"**📈 Monthly NDVI — {crop_name}, {live_year}**")
+            crop_display_name = crop_mapping.display_crop_name(crop_name)
+            st.markdown(f"**📈 Monthly NDVI — {crop_display_name}, {live_year}**")
 
             if available or benchmark_available:
                 fig_ndvi, ax_ndvi = plt.subplots(figsize=(3.6, 1.5))
@@ -532,16 +533,16 @@ else:
             if match_score is None:
                 st.info("ℹ️ Not enough overlapping cloud-free months yet to verify this year against the benchmark.")
             elif match_score >= 75:
-                st.success(f"✅ {match_score:.0f}% match with declared crop \"{crop_name}\".")
+                st.success(f"✅ {match_score:.0f}% match with declared crop \"{crop_display_name}\".")
             elif match_score >= 40:
-                st.warning(f"⚠️ {match_score:.0f}% match with declared crop \"{crop_name}\" — worth a closer look.")
+                st.warning(f"⚠️ {match_score:.0f}% match with declared crop \"{crop_display_name}\" — worth a closer look.")
             else:
-                st.error(f"❌ {match_score:.0f}% match with declared crop \"{crop_name}\" — possible misdeclaration.")
+                st.error(f"❌ {match_score:.0f}% match with declared crop \"{crop_display_name}\" — possible misdeclaration.")
 
             if match_score is not None and match_score < 75:
                 alt_crop, alt_score = _best_alternative_crop(monthly_ndvi, crop_name, benchmark_year)
                 if alt_crop is not None and alt_score > match_score:
-                    st.warning(f"🔎 Fits \"{alt_crop}\" better ({alt_score:.0f}%).")
+                    st.warning(f"🔎 Fits \"{crop_mapping.display_crop_name(alt_crop)}\" better ({alt_score:.0f}%).")
 
             with st.expander("Methodology / caveats"):
                 st.caption(
@@ -553,7 +554,7 @@ else:
                 st.caption(
                     f"Solid = this field, real Sentinel-2 masked to its own polygon. Dashed + shaded band = "
                     f"benchmark mean ±1 std, from {len(benchmark_fields)} other fields declared as "
-                    f"\"{crop_name}\" ({benchmark_year}, same methodology)."
+                    f"\"{crop_display_name}\" ({benchmark_year}, same methodology)."
                 )
                 st.caption(
                     f"⚠️ Crop is per the EuroCrops {CROP_DECLARATION_YEAR} declaration (the last one in "

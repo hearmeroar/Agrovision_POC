@@ -94,3 +94,68 @@ def canonical_crop(raw_name: str) -> str:
     without cross-country pooling/dedup.
     """
     return CANONICAL_CROP.get(raw_name, raw_name)
+
+
+# English display names, keyed by the canonical crop key above (not the raw
+# SI/SK string) so both languages' spelling of the same crop share one label.
+CROP_DISPLAY_NAME = {
+    "corn_grain": "Corn (grain)",
+    "wheat_winter": "Winter wheat",
+    "barley_winter": "Winter barley",
+    "corn_silage": "Corn (silage)",
+    "grassland_permanent": "Permanent grassland",
+    "soybean": "Soybean",
+    "pumpkin_oil": "Oil pumpkin",
+    "triticale_winter": "Winter triticale",
+    "rapeseed_winter": "Winter rapeseed",
+    "rye_winter": "Winter rye",
+    "vegetables": "Vegetables",
+    "fruit_mixed": "Mixed fruit",
+    "clover_crimson": "Crimson clover",
+    "potato_late": "Late potato",
+    "mixed_use": "Mixed use (vegetables/field crops/herbs)",
+    "poppy_winter": "Winter poppy",
+    "sugarbeet": "Sugar beet",
+    "oats_winter": "Winter oats",
+    "miscanthus": "Miscanthus",
+    "hemp": "Hemp",
+    "fallow_with_cover": "Fallow with cover crop",
+    "sunflower": "Sunflower",
+    "clover": "Clover",
+    "barley_spring": "Spring barley",
+    "alfalfa": "Alfalfa",
+    "wheat_spelt": "Spelt wheat",
+    "bee_forage_strip": "Bee forage strip",
+    "sorghum": "Sorghum",
+    "fallow_bee_forage": "Fallow (bee forage)",
+    "wheat_durum_winter": "Winter durum wheat",
+    "grass_forage": "Grass / forage herbs",
+    "radish_oil": "Oil radish",
+    "oats": "Oats",
+    "peas": "Peas",
+    "tomato": "Tomato",
+    "strawberry": "Strawberry",
+    "mustard_white": "White mustard",
+    "sage": "Sage",
+    "carrot": "Carrot",
+    "fallow_bare": "Bare fallow",
+    "wheat_durum_spring": "Spring durum wheat",
+    "garlic": "Garlic (winter)",
+    "wheat_spring": "Spring wheat",
+    "legume_cereal_mix": "Legume-cereal mix",
+    "plum": "Plum",
+    "corn_sweet": "Sweet corn",
+    "watermelon": "Watermelon",
+    "onion": "Onion (spring)",
+    "parsley": "Parsley",
+}
+
+
+def display_crop_name(raw_name: str) -> str:
+    """
+    English label for a raw declared crop name, for anything shown to the
+    user (field picker, chart titles, match-score messages). Falls back to
+    the raw name itself for crops outside the two bundled samples (e.g.
+    "Unknown") rather than hiding that a crop is untranslated.
+    """
+    return CROP_DISPLAY_NAME.get(canonical_crop(raw_name), raw_name)

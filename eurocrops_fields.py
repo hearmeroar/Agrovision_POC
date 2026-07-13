@@ -21,6 +21,8 @@ as Vojvodina) with a similar crop mix (wheat/corn/barley/sunflower/rapeseed):
 import json
 import os
 
+import crop_mapping
+
 _DIR = os.path.dirname(__file__)
 SAMPLES = {
     "SI": os.path.join(_DIR, "sample_fields_eurocrops_si.geojson"),
@@ -47,11 +49,12 @@ def _load_features(path, country_code):
             continue
         props = feature["properties"]
         crop = props.get("crop", "unknown crop")
+        display_crop = crop_mapping.display_crop_name(crop)
         area_ha = props.get("area_ha")
         label = (
-            f"EuroCrops {country_code} #{i}: {crop} ({area_ha:.2f} ha)"
+            f"EuroCrops {country_code} #{i}: {display_crop} ({area_ha:.2f} ha)"
             if area_ha is not None
-            else f"EuroCrops {country_code} #{i}: {crop}"
+            else f"EuroCrops {country_code} #{i}: {display_crop}"
         )
         items.append((label, exterior_ring, crop, area_ha))
 
